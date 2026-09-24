@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+test-results/
+playwright-report/
+*.log
+.DS_Store
+.vite/
+# Runtime assets copied/downloaded by scripts/setup-assets.mjs
+public/mediapipe/
+public/models/*.task
