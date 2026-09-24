@@ -54,8 +54,9 @@ const runtime = [
   ['models/pose_landmarker_lite.task', null],
   ['sw.js', 'javascript'],
   ['audio/manifest.json', 'json'],
-  ['audio/zh-CN/speech.test.mp3', 'audio/mpeg'],
-  ['audio/zh-CN/issue.late-contact.now.mp3', 'audio/mpeg'],
+  // GitHub Pages serves .mp3 as audio/mp3; other hosts use audio/mpeg.
+  ['audio/zh-CN/speech.test.mp3', 'audio/mp'],
+  ['audio/zh-CN/issue.late-contact.now.mp3', 'audio/mp'],
   ['icon-512.png', 'image/png'],
 ];
 for (const [path, type] of runtime) {
