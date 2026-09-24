@@ -369,6 +369,7 @@ body {
 
 .controls button {
   flex: 1;
+  padding: 12px 8px;
 }
 
 .controls.secondary {
@@ -390,6 +391,7 @@ button,
   color: var(--text);
   cursor: pointer;
   min-height: 48px;
+  white-space: nowrap;
 }
 
 button.primary {

@@ -101,7 +101,7 @@ export class CoachView {
 
   setVoice(on: boolean): void {
     this.voiceBtn.setAttribute('aria-pressed', String(on));
-    setText(this.voiceBtn, on ? '🔊 Voice on' : '🔇 Voice off');
+    setText(this.voiceBtn, on ? '🔊 Voice' : '🔇 Muted');
   }
 
   // ---- Live updates (called ~10x per second) --------------------------------
