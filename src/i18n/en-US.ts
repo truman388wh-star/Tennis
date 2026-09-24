@@ -30,7 +30,7 @@ export const enUS = {
       'Tap **Start** and just keep hitting. The app picks up each forehand and tells you one thing about it.',
     ],
     note: "Contact timing is *estimated* from your arm movement, because the app doesn't see the ball or racket. The scores are rough, rule-based estimates, not a coach's judgement.",
-    privacy: 'Privacy: camera video, pose data and scores never leave this device. Voice feedback uses on-device voices only.',
+    privacy: "Privacy: camera video, pose data and scores never leave this device. Spoken feedback uses your phone's speech engine (on some devices the system voice may synthesize the feedback text online).",
   },
 
   buttons: {
@@ -187,8 +187,11 @@ export const enUS = {
     processing: 'Processing error: {message}',
   },
 
-  notices: {
-    noLocalVoice: 'Voice feedback is off: this device has no on-device {language} voice. Feedback is shown on screen instead.',
+  speech: {
+    testButton: 'Test voice',
+    test: 'Voice test successful. Speech is working.',
+    enabled: 'Voice on.',
+    failed: 'Speech could not be played on this device. Feedback is shown on screen.',
   },
 
   coaching: {

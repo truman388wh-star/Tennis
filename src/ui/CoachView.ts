@@ -30,6 +30,7 @@ export interface ViewHandlers {
   onFile(file: File): void;
   onSettingsChanged(settings: UserSettings): void;
   onLanguageChanged(lang: Language): void;
+  onVoiceTest(): void;
 }
 
 interface LiveView {
@@ -92,6 +93,7 @@ export class CoachView {
       this.fileInput.value = '';
     });
     byId('settings-btn').addEventListener('click', () => this.openSettings());
+    byId('voice-test').addEventListener('click', () => handlers.onVoiceTest());
     this.bindSettings();
     i18n.subscribe(() => this.render());
     this.render();

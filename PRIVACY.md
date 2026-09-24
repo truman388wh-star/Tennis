@@ -35,7 +35,13 @@ This is enforced in two independent layers:
 
 ### Voice feedback and language
 
-Speech uses the browser's speech synthesis with **on-device voices only** (`localService === true`), in the selected language: a local Mandarin voice for 中文, a local English voice for English. Some browsers, notably desktop Chrome's "Google …" voices, synthesize speech on a server, which would send the coaching text off the device. The app never selects those voices, and it never falls back to the browser's default voice. If no local voice exists for the selected language, the cue is shown on screen and not spoken, with a short notice.
+Spoken feedback is produced in this order, in the selected language:
+
+1. **Browser speech (Web Speech API) with a matching voice.** For 中文: `zh-CN`, then `zh-Hans-CN`, `zh-Hans`/`cmn`, then any `zh*` voice. On-device voices are preferred over network voices of the same language.
+2. **Browser speech with the default system voice** and `utterance.lang = "zh-CN"` / `"en-US"`, if the browser lists no voice for the language (common on Android).
+3. **Bundled audio clips.** If the browser cannot produce speech (it reports an error, or speech never starts within 2.5 s), the app plays pre-generated MP3 clips of the fixed coaching phrases from its own site (`/audio/<lang>/…mp3`). These clips are generated offline at build time with eSpeak NG. No speech service is contacted.
+
+**Privacy note (changed on request):** tiers 1 and 2 hand the short coaching sentence (for example "击球点太晚了") to the browser's or phone's speech engine. On some devices that engine synthesizes speech online; examples are desktop Chrome's "Google …" voices, or an Android TTS engine without the offline language pack. In that case the coaching text, but never video, pose data or scores, is sent to that engine's provider. Tier 3 is fully local. The app itself makes no speech-related network request, and the CSP and network guard are unchanged.
 
 Language resources are bundled with the app. Switching language loads nothing and makes no network request. The language preference is stored only in `localStorage` (`tennis-coach.settings.v1`, field `language`).
 

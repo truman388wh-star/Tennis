@@ -53,6 +53,9 @@ const runtime = [
   ['mediapipe/wasm/vision_wasm_nosimd_internal.wasm', 'application/wasm'],
   ['models/pose_landmarker_lite.task', null],
   ['sw.js', 'javascript'],
+  ['audio/manifest.json', 'json'],
+  ['audio/zh-CN/speech.test.mp3', 'audio/mpeg'],
+  ['audio/zh-CN/issue.late-contact.now.mp3', 'audio/mpeg'],
   ['icon-512.png', 'image/png'],
 ];
 for (const [path, type] of runtime) {

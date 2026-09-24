@@ -36,6 +36,8 @@ npm install
 npm run dev            # http://localhost:5173
 ```
 
+Optional: generate the offline voice clips used as the last speech fallback: `pip install espeakng-loader lameenc && npm run voice-clips`. CI does this automatically.
+
 `npm run dev` and `npm run build` first run `scripts/setup-assets.mjs`, which:
 
 1. copies the MediaPipe WASM runtime from `node_modules` into `public/mediapipe/wasm/`, and
@@ -218,7 +220,12 @@ The app is fully localized in **Simplified Chinese (`zh-CN`)** and **English (`e
 - **Default:** the device/browser language (any Chinese locale → 中文, otherwise English).
 - **Switching:** Settings → *Language / 语言*. The change applies immediately, with no reload, including the latest feedback on screen, and is saved in `localStorage`. From then on the saved choice wins over the device language.
 - **Coaching cues** are written separately for each language, not machine-translated. Chinese cues are short on-court calls ("击球点太晚了", "重心向前送"); English keeps the concise style ("Contact point was too late.").
-- **Speech follows the language** and uses **on-device voices only**: a local Mandarin voice for 中文 (Cantonese voices are excluded), a local English voice for English. If the phone has no local voice for the selected language, the cue is shown as text and a short notice explains why. Online/cloud voices are never used.
+- **Speech follows the language**, with three fallbacks:
+  1. a matching browser voice (on-device preferred);
+  2. the default system voice with `utterance.lang` set;
+  3. bundled offline MP3 clips of every coaching phrase (`npm run voice-clips`, eSpeak NG), used when the browser cannot synthesize speech.
+
+  Tapping **🔊 语音 / Voice** unlocks audio and confirms audibly, and **测试语音 / Test voice** plays a test sentence. Open the browser console and filter for `[speech]` to see the full diagnostic log (voices, selection, fallback, start, end, errors). Details are in [PRIVACY.md](PRIVACY.md).
 - **Architecture:** `src/i18n/en-US.ts` and `src/i18n/zh-CN.ts` hold all strings (UI, coaching, metric and phase labels, summary, errors). `src/i18n/index.ts` handles detection, persistence and formatting. The coaching engine emits language-neutral message keys (`src/coaching/messageKeys.ts`), which are rendered into text only for display or speech. The TypeScript types and a unit test guarantee both languages have exactly the same keys and placeholders. To add a language, add a resource file and register it in `src/i18n/index.ts`.
 
 ## Privacy

@@ -122,3 +122,77 @@ describe('QueuedSpeechOutput', () => {
     expect(engine.stops).toBeGreaterThan(0);
   });
 });
+
+describe('FallbackSpeechEngine', () => {
+  /** Fake Web Speech: 'ok' speaks, 'fail' errors before starting. */
+  function fakeWeb(mode: 'ok' | 'fail') {
+    const said: string[] = [];
+    return {
+      said,
+      speak(text: string, cb: { onEnd(): void; onFail(r: string): void }) {
+        said.push(text);
+        if (mode === 'ok') cb.onEnd();
+        else cb.onFail('synthesis-failed');
+      },
+      stop() {},
+      unlock() {},
+      setLanguage() {},
+    };
+  }
+  function fakeClips(ids: string[]) {
+    const played: string[] = [];
+    return {
+      played,
+      has: (_l: string, id?: string) => !!id && ids.includes(id),
+      hasLanguage: () => ids.length > 0,
+      play(lang: string, id: string, onEnd: () => void) {
+        played.push(`${lang}/${id}`);
+        onEnd();
+      },
+      stop() {},
+      unlock() {},
+    };
+  }
+
+  it('uses Web Speech when it works', async () => {
+    const { FallbackSpeechEngine } = await import('../src/speech/SpeechOutput');
+    const web = fakeWeb('ok');
+    const clips = fakeClips(['speech.test']);
+    const e = new FallbackSpeechEngine('zh-CN', web as never, clips as never);
+    let ended = 0;
+    e.start('语音测试成功，现在可以正常播放中文。', () => ended++, 'speech.test');
+    expect(web.said).toEqual(['语音测试成功，现在可以正常播放中文。']);
+    expect(clips.played).toEqual([]);
+    expect(ended).toBe(1);
+  });
+
+  it('falls back to the bundled clip when Web Speech cannot speak, and keeps using clips', async () => {
+    const { FallbackSpeechEngine } = await import('../src/speech/SpeechOutput');
+    const web = fakeWeb('fail');
+    const clips = fakeClips(['speech.test', 'issue.late-contact.now']);
+    const e = new FallbackSpeechEngine('zh-CN', web as never, clips as never);
+    let ended = 0;
+    e.start('语音测试成功，现在可以正常播放中文。', () => ended++, 'speech.test');
+    e.start('击球点太晚了', () => ended++, 'issue.late-contact.now');
+    expect(web.said).toHaveLength(1); // not retried after failing
+    expect(clips.played).toEqual(['zh-CN/speech.test', 'zh-CN/issue.late-contact.now']);
+    expect(ended).toBe(2);
+    e.resetFailures(); // the voice test button retries Web Speech
+    e.start('击球点太晚了', () => ended++, 'issue.late-contact.now');
+    expect(web.said).toHaveLength(2);
+  });
+
+  it('uses clips directly when the Web Speech API is missing, and reports total failure', async () => {
+    const { FallbackSpeechEngine } = await import('../src/speech/SpeechOutput');
+    const clips = fakeClips(['speech.test']);
+    const e = new FallbackSpeechEngine('zh-CN', null, clips as never);
+    let failures = 0;
+    e.onFailure = () => failures++;
+    expect(e.canSpeak()).toBe(true);
+    e.start('语音测试成功，现在可以正常播放中文。', () => undefined, 'speech.test');
+    e.start('没有对应音频的文字', () => undefined, 'unknown.clip');
+    expect(clips.played).toEqual(['zh-CN/speech.test']);
+    expect(failures).toBe(1);
+    expect(new FallbackSpeechEngine('zh-CN', null, fakeClips([]) as never).canSpeak()).toBe(false);
+  });
+});

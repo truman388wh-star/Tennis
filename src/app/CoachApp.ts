@@ -12,7 +12,8 @@ import type { PoseEstimator } from '../pose/PoseEstimator';
 import { SyntheticPoseSource } from '../pose/SyntheticPoseSource';
 import { CoachSession, createDefaultStages, type LiveState } from '../session/CoachSession';
 import { summarizeSession } from '../session/SessionSummary';
-import { QueuedSpeechOutput, SilentEngine, WebSpeechEngine, type SpeechOutput } from '../speech/SpeechOutput';
+import { AudioClipPlayer, FallbackSpeechEngine, QueuedSpeechOutput, WebSpeechEngine, type SpeechOutput } from '../speech/SpeechOutput';
+import { messageId } from '../coaching/messageKeys';
 import type { PoseFrame, StrokeAnalysis } from '../types';
 import { CoachView, type SpeechOutcome, type Text } from '../ui/CoachView';
 import { SkeletonOverlay } from '../ui/SkeletonOverlay';
@@ -25,6 +26,7 @@ export class CoachApp {
   private readonly view: CoachView;
   private readonly overlay: SkeletonOverlay;
   private readonly speech: SpeechOutput;
+  private readonly speechEngine: FallbackSpeechEngine;
   private estimator: PoseEstimator | null = null;
   private config: AppConfig = createConfig();
 
@@ -55,13 +57,16 @@ export class CoachApp {
       onFile: (file) => void this.start('file', file),
       onSettingsChanged: (s) => this.updateSettings(s),
       onLanguageChanged: (lang) => this.changeLanguage(lang),
+      onVoiceTest: () => this.testSpeech(),
     }, this.config.historySize);
     this.overlay = new SkeletonOverlay(this.view.canvas);
-    // Speech follows the UI language and only ever uses on-device voices.
-    const engine = WebSpeechEngine.available()
-      ? new WebSpeechEngine(i18n.lang, this.config.speech.rate)
-      : new SilentEngine();
-    this.speech = new QueuedSpeechOutput(engine, this.config.speech.maxQueuedAgeMs);
+    // Speech follows the UI language: Web Speech with a matching voice, else
+    // the default system voice with utterance.lang, else bundled audio clips.
+    const web = WebSpeechEngine.supported() ? new WebSpeechEngine(i18n.lang, this.config.speech.rate) : null;
+    const clips = new AudioClipPlayer(new URL(import.meta.env.BASE_URL, window.location.href).href);
+    this.speechEngine = new FallbackSpeechEngine(i18n.lang, web, clips);
+    this.speechEngine.onFailure = () => this.view.showNotice((t) => t.speech.failed);
+    this.speech = new QueuedSpeechOutput(this.speechEngine, this.config.speech.maxQueuedAgeMs);
     this.speech.setMuted(!settings.voiceEnabled);
     i18n.subscribe((lang) => {
       this.speech.setLanguage(lang);
@@ -227,7 +232,11 @@ export class CoachApp {
     let outcome: SpeechOutcome = 'notSpoken';
     if (a.feedback.speak && this.settings.voiceEnabled) {
       // Text in the current language; spoken only with an on-device voice.
-      const result = this.speech.speak(coachingText(a.feedback.message, this.i18n.lang), a.feedback.priority);
+      const result = this.speech.speak(
+        coachingText(a.feedback.message, this.i18n.lang),
+        a.feedback.priority,
+        messageId(a.feedback.message),
+      );
       outcome = result === 'unavailable' ? 'noVoice' : result === 'muted' ? 'notSpoken' : 'spoken';
       if (result === 'unavailable') this.updateVoiceNotice();
     }
@@ -249,10 +258,31 @@ export class CoachApp {
   private toggleVoice(): void {
     this.settings = { ...this.settings, voiceEnabled: !this.settings.voiceEnabled };
     this.speech.setMuted(!this.settings.voiceEnabled);
-    if (this.settings.voiceEnabled) this.speech.unlock();
     this.view.setVoice(this.settings.voiceEnabled);
+    if (this.settings.voiceEnabled) {
+      // Inside the tap: unlock audio, then confirm audibly so it can be heard working.
+      this.speech.unlock();
+      this.speech.speak(this.i18n.t.speech.enabled, 3, 'speech.enabled');
+    }
     this.updateVoiceNotice();
     saveSettings(this.settings);
+  }
+
+  /** Voice test button: turns voice on if needed and speaks a test sentence. */
+  testSpeech(): void {
+    if (!this.settings.voiceEnabled) {
+      this.settings = { ...this.settings, voiceEnabled: true };
+      this.speech.setMuted(false);
+      this.view.setVoice(true);
+      saveSettings(this.settings);
+    }
+    this.view.showNotice(null);
+    this.speechEngine.resetFailures();
+    this.speech.cancel();
+    this.speech.unlock();
+    const result = this.speech.speak(this.i18n.t.speech.test, 9, 'speech.test');
+    console.info('[speech] voice test:', result);
+    if (result === 'unavailable') this.updateVoiceNotice();
   }
 
   private updateSettings(s: UserSettings): void {
@@ -267,10 +297,10 @@ export class CoachApp {
     this.i18n.setLanguage(lang);
   }
 
-  /** Shows a short notice when voice is on but no on-device voice exists. */
+  /** Shows a short notice when voice is on but no way to produce speech exists. */
   private updateVoiceNotice(): void {
     const missing = this.settings.voiceEnabled && !this.speech.available;
-    this.view.showNotice(missing ? (t) => fmt(t.notices.noLocalVoice, { language: t.meta.languageName }) : null);
+    this.view.showNotice(missing ? (t) => t.speech.failed : null);
   }
 
   private async acquireWakeLock(): Promise<void> {
