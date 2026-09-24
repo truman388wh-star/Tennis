@@ -68,7 +68,9 @@ npm run dev:phone
 
 Open the `https://<your-computer-ip>:5173` address it prints on the phone. The certificate is self-signed, so accept the browser warning ("Advanced → Proceed"). Then allow camera access.
 
-**B. Static HTTPS hosting.** `npm run build` produces a static `dist/` folder, built with relative paths, that works from any HTTPS host or sub-path. The repo includes a manual GitHub Pages workflow (`.github/workflows/deploy-pages.yml`): enable Pages with source "GitHub Actions" in the repository settings, then run the workflow.
+**B. GitHub Pages (no computer needed at the court).** The workflow `.github/workflows/deploy-pages.yml` builds the app for the repository sub-path (`BASE_PATH=/<repo>/`), deploys it on every push to `main` (or when run manually), and then checks the live site: every JS, CSS, WASM, model and icon file must return 200, and the browser tests, including the camera-permission flow, run against the deployed URL. One-time setup: **Settings → Pages → Source: GitHub Actions**. The app is then at `https://<user>.github.io/<repo>/`. Pages on a private repository needs a paid GitHub plan; on the free plan the repository must be public.
+
+To check any deployment by hand: `node scripts/verify-deployment.mjs https://<user>.github.io/<repo>/`.
 
 **Permissions:** camera (required). No microphone is used. Speech works without a permission, but iOS requires a tap first, which the **Start** button provides. The app keeps the screen awake with the Wake Lock API where supported. The app can also be installed as a PWA ("Add to Home Screen") and works offline after the first load.
 

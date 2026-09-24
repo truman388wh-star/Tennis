@@ -6,7 +6,9 @@ export default defineConfig({
   timeout: 90_000,
   retries: 0,
   use: {
-    baseURL: 'http://localhost:4173',
+    // E2E_BASE_URL lets the same tests run against a sub-path build or the
+    // deployed site. Must end with "/"; tests navigate to "./".
+    baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:4173/',
     launchOptions: {
       args: [
         '--use-fake-ui-for-media-stream',
@@ -16,7 +18,7 @@ export default defineConfig({
     },
     permissions: ['camera'],
   },
-  webServer: {
+  webServer: process.env.E2E_BASE_URL ? undefined : {
     command: 'npx vite preview --port 4173 --strictPort',
     url: 'http://localhost:4173',
     reuseExistingServer: true,
