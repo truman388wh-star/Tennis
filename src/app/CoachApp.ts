@@ -24,6 +24,7 @@ export class CoachApp {
   private readonly view: CoachView;
   private readonly overlay: SkeletonOverlay;
   private readonly speech: SpeechOutput;
+  private readonly speechEngine: WebSpeechEngine | null;
   private estimator: PoseEstimator | null = null;
   private config: AppConfig = createConfig();
 
@@ -52,10 +53,10 @@ export class CoachApp {
       onSettingsChanged: (s) => this.updateSettings(s),
     }, this.config.historySize);
     this.overlay = new SkeletonOverlay(this.view.canvas);
-    const engine = WebSpeechEngine.available()
+    this.speechEngine = WebSpeechEngine.available()
       ? new WebSpeechEngine(this.config.speech.lang, this.config.speech.rate)
-      : new SilentEngine();
-    this.speech = new QueuedSpeechOutput(engine, this.config.speech.maxQueuedAgeMs);
+      : null;
+    this.speech = new QueuedSpeechOutput(this.speechEngine ?? new SilentEngine(), this.config.speech.maxQueuedAgeMs);
     this.speech.setMuted(!settings.voiceEnabled);
 
     document.addEventListener('visibilitychange', () => {
@@ -107,6 +108,12 @@ export class CoachApp {
       this.view.setStatus('error', 'Could not start');
       this.view.showError(err instanceof Error ? err.message : String(err));
       return;
+    }
+
+    if (this.settings.voiceEnabled && this.speechEngine && !this.speechEngine.hasPrivateVoice) {
+      this.view.showError(
+        'Voice feedback is off: this browser only offers online voices, which would send the coaching text to a server. Feedback is shown on screen instead.',
+      );
     }
 
     this.running = true;

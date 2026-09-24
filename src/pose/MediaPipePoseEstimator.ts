@@ -1,8 +1,9 @@
 // MediaPipe Pose Landmarker (Lite) running fully on-device in the browser.
 // The WASM runtime and model are served by this app (public/mediapipe,
-// public/models); no CDN is contacted. If the local model is missing, the
-// official model URL is used as a fallback. GPU delegate is preferred with
-// automatic CPU fallback.
+// public/models); no CDN or other host is contacted. Frames are passed from
+// the <video> element straight into WASM memory; only 33 landmark coordinates
+// come back, and nothing is stored or transmitted. GPU delegate is preferred
+// with automatic CPU fallback.
 
 import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
 import type { PoseConfig } from '../config/config';
@@ -23,8 +24,7 @@ export class MediaPipePoseEstimator implements PoseEstimator {
   async init(): Promise<void> {
     const base = new URL(this.baseUrl, window.location.href);
     const wasm = await FilesetResolver.forVisionTasks(new URL(this.cfg.wasmPath, base).href.replace(/\/$/, ''));
-    const localModel = new URL(this.cfg.modelPath, base).href;
-    const modelAssetPath = (await exists(localModel)) ? localModel : this.cfg.fallbackModelUrl;
+    const modelAssetPath = new URL(this.cfg.modelPath, base).href;
 
     const create = (delegate: 'GPU' | 'CPU') =>
       PoseLandmarker.createFromOptions(wasm, {
@@ -66,14 +66,5 @@ export class MediaPipePoseEstimator implements PoseEstimator {
   close(): void {
     this.landmarker?.close();
     this.landmarker = null;
-  }
-}
-
-async function exists(url: string): Promise<boolean> {
-  try {
-    const res = await fetch(url, { method: 'HEAD' });
-    return res.ok && !(res.headers.get('content-type') ?? '').includes('text/html');
-  } catch {
-    return false;
   }
 }

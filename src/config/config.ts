@@ -15,11 +15,12 @@ export interface CameraConfig {
 }
 
 export interface PoseConfig {
-  /** Served locally by the app (see scripts/setup-assets.mjs). */
+  /**
+   * Served by the app itself (see scripts/setup-assets.mjs). No third-party
+   * host is ever contacted at runtime.
+   */
   wasmPath: string;
   modelPath: string;
-  /** Used only if the local model file is missing. */
-  fallbackModelUrl: string;
   minPoseDetectionConfidence: number;
   minPosePresenceConfidence: number;
   minTrackingConfidence: number;
@@ -208,8 +209,6 @@ export const DEFAULT_CONFIG: AppConfig = {
   pose: {
     wasmPath: 'mediapipe/wasm',
     modelPath: 'models/pose_landmarker_lite.task',
-    fallbackModelUrl:
-      'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task',
     minPoseDetectionConfidence: 0.5,
     minPosePresenceConfidence: 0.5,
     minTrackingConfidence: 0.5,

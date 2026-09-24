@@ -105,9 +105,30 @@ export class QueuedSpeechOutput implements SpeechOutput {
 
 const CANCEL_SETTLE_MS = 60;
 
-/** Browser SpeechSynthesis engine. */
+/** Best on-device voice for the language, or null. Never a network voice. */
+export function pickLocalVoice(
+  voices: readonly Pick<SpeechSynthesisVoice, 'lang' | 'localService'>[],
+  lang: string,
+): SpeechSynthesisVoice | null {
+  const local = voices.filter((v) => v.localService);
+  const base = lang.split('-')[0];
+  return (
+    (local.find((v) => v.lang === lang) ??
+      local.find((v) => v.lang.replace('_', '-').startsWith(base)) ??
+      null) as SpeechSynthesisVoice | null
+  );
+}
+
+/**
+ * Browser SpeechSynthesis engine, restricted to ON-DEVICE voices.
+ * Some browsers (e.g. desktop Chrome's "Google …" voices) offer network voices
+ * that send the text to a server; coaching text is derived from the player's
+ * technique, so only voices with localService === true are used. If the voice
+ * list is known and contains no local voice, feedback is shown but not spoken.
+ */
 export class WebSpeechEngine implements SpeechEngine {
   private voice: SpeechSynthesisVoice | null = null;
+  private voicesKnown = false;
   private lastCancelAt = Number.NEGATIVE_INFINITY;
 
   constructor(
@@ -117,14 +138,16 @@ export class WebSpeechEngine implements SpeechEngine {
     if (!WebSpeechEngine.available()) return;
     const pick = () => {
       const voices = speechSynthesis.getVoices();
-      this.voice =
-        voices.find((v) => v.lang === lang && v.localService) ??
-        voices.find((v) => v.lang === lang) ??
-        voices.find((v) => v.lang.startsWith(lang.split('-')[0])) ??
-        null;
+      this.voicesKnown = voices.length > 0;
+      this.voice = pickLocalVoice(voices, lang);
     };
     pick();
     speechSynthesis.addEventListener?.('voiceschanged', pick);
+  }
+
+  /** False when only network voices exist (speech disabled for privacy). */
+  get hasPrivateVoice(): boolean {
+    return !this.voicesKnown || this.voice !== null;
   }
 
   static available(): boolean {
@@ -132,13 +155,15 @@ export class WebSpeechEngine implements SpeechEngine {
   }
 
   start(text: string, onEnd: () => void): void {
-    if (!WebSpeechEngine.available()) {
+    if (!WebSpeechEngine.available() || !this.hasPrivateVoice) {
       onEnd();
       return;
     }
     const u = new SpeechSynthesisUtterance(text);
     u.lang = this.lang;
     u.rate = this.rate;
+    // Before the voice list has loaded (common on iOS), the platform default
+    // voice is used; on iOS and Android that is the on-device system voice.
     if (this.voice) u.voice = this.voice;
     let done = false;
     const finish = () => {
