@@ -103,9 +103,12 @@ export class QueuedSpeechOutput implements SpeechOutput {
   }
 }
 
+const CANCEL_SETTLE_MS = 60;
+
 /** Browser SpeechSynthesis engine. */
 export class WebSpeechEngine implements SpeechEngine {
   private voice: SpeechSynthesisVoice | null = null;
+  private lastCancelAt = Number.NEGATIVE_INFINITY;
 
   constructor(
     private readonly lang: string,
@@ -146,11 +149,19 @@ export class WebSpeechEngine implements SpeechEngine {
     };
     u.onend = finish;
     u.onerror = finish;
-    speechSynthesis.speak(u);
+    // Some Chrome versions silently drop an utterance queued right after
+    // cancel(); defer briefly in that case (only when interrupting).
+    if (performance.now() - this.lastCancelAt < CANCEL_SETTLE_MS) {
+      setTimeout(() => speechSynthesis.speak(u), CANCEL_SETTLE_MS);
+    } else {
+      speechSynthesis.speak(u);
+    }
   }
 
   stop(): void {
-    if (WebSpeechEngine.available()) speechSynthesis.cancel();
+    if (!WebSpeechEngine.available()) return;
+    this.lastCancelAt = performance.now();
+    speechSynthesis.cancel();
   }
 }
 
