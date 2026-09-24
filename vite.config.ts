@@ -5,8 +5,10 @@ import basicSsl from '@vitejs/plugin-basic-ssl';
 // server can be opened from a phone on the same Wi-Fi network. Browsers only
 // grant camera access on HTTPS origins (or localhost).
 export default defineConfig(({ mode }) => ({
-  // Relative base so the build works from any sub-path (e.g. GitHub Pages).
-  base: './',
+  // BASE_PATH is set by the GitHub Pages workflow (e.g. "/Tennis/") so asset,
+  // WASM and model URLs are absolute under the repository sub-path. Locally
+  // the relative base works from any directory.
+  base: process.env.BASE_PATH || './',
   plugins: mode === 'https' ? [basicSsl()] : [],
   build: {
     target: 'es2022',
