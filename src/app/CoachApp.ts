@@ -5,6 +5,7 @@
 import { createConfig, type AppConfig, type UserSettings } from '../config/config';
 import { saveSettings } from '../config/settings';
 import { CameraError, CameraSource, VideoFileSource, type FrameSource } from '../camera/FrameSource';
+import { zoomPresets } from '../camera/lens';
 import { coachingText, fmt, type I18n, type Language, type Messages } from '../i18n';
 import { InferenceRateController } from '../camera/InferenceRateController';
 import { MediaPipePoseEstimator } from '../pose/MediaPipePoseEstimator';
@@ -58,6 +59,7 @@ export class CoachApp {
       onSettingsChanged: (s) => this.updateSettings(s),
       onLanguageChanged: (lang) => this.changeLanguage(lang),
       onVoiceTest: () => this.testSpeech(),
+      onZoom: (level) => void this.setZoom(level),
     }, this.config.historySize);
     this.overlay = new SkeletonOverlay(this.view.canvas);
     // Speech follows the UI language: Web Speech with a matching voice, else
@@ -115,6 +117,10 @@ export class CoachApp {
         this.source = mode === 'camera' ? new CameraSource(this.view.video, this.config.camera) : new VideoFileSource(this.view.video, file!);
         await this.source.start();
         this.view.setMirrored(this.source.mirrored);
+        this.view.setCover(mode === 'camera');
+        if (this.source instanceof CameraSource) {
+          this.view.setZoomLevels(zoomPresets(this.source.zoomRange()), this.source.zoom);
+        }
         if (mode === 'file') this.view.video.addEventListener('ended', this.onVideoEnded);
       }
     } catch (err) {
@@ -131,6 +137,12 @@ export class CoachApp {
     this.view.setRunning(true, mode === 'camera' ? 'live' : mode);
     void this.acquireWakeLock();
     this.scheduleNext();
+  }
+
+  /** Real camera zoom (live camera only). */
+  async setZoom(level: number): Promise<void> {
+    if (!(this.source instanceof CameraSource)) return;
+    this.view.setActiveZoom(await this.source.setZoom(level));
   }
 
   stop(): void {
@@ -153,6 +165,8 @@ export class CoachApp {
     this.view.video.removeEventListener('ended', this.onVideoEnded);
     this.source?.stop();
     this.source = null;
+    this.view.setCover(false);
+    this.view.setZoomLevels([], null);
     this.demo = null;
   }
 
@@ -223,7 +237,7 @@ export class CoachApp {
     const result = this.session!.processFrame(pose);
     this.lastLive = result.live;
     const highlight = result.live.detectorState === 'swinging' || result.live.detectorState === 'followThrough';
-    this.overlay.draw(pose, this.settings.handedness, this.source?.mirrored ?? false, this.config.features.minVisibility, highlight);
+    this.overlay.draw(pose, this.settings.handedness, this.source?.mirrored ?? false, this.config.features.minVisibility, highlight, this.source?.kind === 'camera');
     if (result.analysis) this.onStroke(result.analysis);
   }
 

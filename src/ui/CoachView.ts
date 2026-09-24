@@ -31,6 +31,7 @@ export interface ViewHandlers {
   onSettingsChanged(settings: UserSettings): void;
   onLanguageChanged(lang: Language): void;
   onVoiceTest(): void;
+  onZoom(level: number): void;
 }
 
 interface LiveView {
@@ -42,6 +43,8 @@ interface LiveView {
 export class CoachView {
   readonly video = byId<HTMLVideoElement>('video');
   readonly canvas = byId<HTMLCanvasElement>('overlay');
+  private readonly stage = byId('stage');
+  private readonly zoom = byId('zoom');
   private readonly status = byId('status');
   private readonly phase = byId('phase');
   private readonly perf = byId('perf');
@@ -180,6 +183,43 @@ export class CoachView {
 
   setMirrored(mirrored: boolean): void {
     this.video.classList.toggle('mirrored', mirrored);
+  }
+
+  /** Live camera fills the stage (object-fit: cover); files and demo are letterboxed. */
+  setCover(cover: boolean): void {
+    this.stage.classList.toggle('cover', cover);
+  }
+
+  /** Shows real camera zoom presets; hidden when the camera has no zoom. */
+  setZoomLevels(levels: readonly number[], current: number | null): void {
+    if (this.zoom.childElementCount !== levels.length || levels.some((z, i) => (this.zoom.children[i] as HTMLElement).dataset.zoom !== String(z))) {
+      this.zoom.replaceChildren(
+        ...levels.map((z) => {
+          const b = h('button', { type: 'button' }, `${z}×`);
+          b.dataset.zoom = String(z);
+          b.addEventListener('click', () => this.handlers.onZoom(z));
+          return b;
+        }),
+      );
+    }
+    this.zoom.hidden = levels.length === 0;
+    this.setActiveZoom(current);
+  }
+
+  setActiveZoom(current: number | null): void {
+    // Highlight the preset nearest to the camera's actual zoom.
+    let nearest: HTMLElement | null = null;
+    let best = Infinity;
+    for (const b of this.zoom.children as HTMLCollectionOf<HTMLElement>) {
+      const d = current === null ? Infinity : Math.abs(Number(b.dataset.zoom) - current);
+      if (d < best) {
+        best = d;
+        nearest = b;
+      }
+    }
+    for (const b of this.zoom.children as HTMLCollectionOf<HTMLElement>) {
+      b.setAttribute('aria-pressed', String(b === nearest && best < 0.25));
+    }
   }
 
   showError(text: Text | null): void {

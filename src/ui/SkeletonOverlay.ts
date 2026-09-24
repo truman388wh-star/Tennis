@@ -1,5 +1,6 @@
-// Draws the detected pose over the video. The canvas matches the displayed
-// video box (object-fit: contain), so landmarks line up with the image.
+// Draws the detected pose over the video. The canvas covers the stage and the
+// frame is mapped with the same fit as the video (object-fit: contain or
+// cover), so landmarks line up with the image.
 
 import type { PoseFrame } from '../types';
 import { SKELETON_EDGES, dominantArm } from '../pose/landmarks';
@@ -18,7 +19,7 @@ export class SkeletonOverlay {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
   }
 
-  draw(frame: PoseFrame, handedness: Handedness, mirrored: boolean, minVisibility: number, highlight: boolean): void {
+  draw(frame: PoseFrame, handedness: Handedness, mirrored: boolean, minVisibility: number, highlight: boolean, cover = false): void {
     const { canvas, ctx } = this;
     const rect = canvas.getBoundingClientRect();
     const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -30,10 +31,11 @@ export class SkeletonOverlay {
     }
     ctx.clearRect(0, 0, w, hgt);
 
-    // Fit the frame (aspect) into the canvas like object-fit: contain.
+    // Fit the frame (aspect) into the canvas like object-fit: contain / cover.
     const boxAspect = w / hgt;
-    const drawW = frame.aspect > boxAspect ? w : hgt * frame.aspect;
-    const drawH = frame.aspect > boxAspect ? w / frame.aspect : hgt;
+    const widthLimited = cover ? frame.aspect < boxAspect : frame.aspect > boxAspect;
+    const drawW = widthLimited ? w : hgt * frame.aspect;
+    const drawH = widthLimited ? w / frame.aspect : hgt;
     const ox = (w - drawW) / 2;
     const oy = (hgt - drawH) / 2;
     const px = (x: number) => {
