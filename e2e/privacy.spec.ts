@@ -18,7 +18,7 @@ function recordRequests(page: Page): Req[] {
 }
 
 /** Static files the app is allowed to load (relative to the app's base URL). */
-const STATIC_FILE = /\/(|index\.html|sw\.js|manifest\.webmanifest|icon[-\w]*\.(svg|png)|assets\/[\w.-]+\.(js|css)|mediapipe\/wasm\/vision_wasm[\w]*\.(js|wasm)|models\/pose_landmarker_lite\.task)$/;
+const STATIC_FILE = /\/(|index\.html|sw\.js|manifest\.webmanifest|icon[-\w]*\.(svg|png)|assets\/[\w.-]+\.(js|css)|mediapipe\/wasm\/vision_wasm[\w]*\.(js|wasm)|models\/pose_landmarker_lite\.task|audio\/manifest\.json|audio\/(zh-CN|en-US)\/[\w.-]+\.mp3)$/;
 
 for (const locale of ['en-US', 'zh-CN'] as const) test.describe(`in ${locale}`, () => {
 test.use({ locale });

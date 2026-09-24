@@ -31,14 +31,21 @@ jobs:
       - id: pages
         uses: actions/configure-pages@v5
       - run: npm ci
+      - name: Generate offline voice clips (audio fallback)
+        run: |
+          python3 -m pip install --quiet espeakng-loader lameenc
+          npm run voice-clips -- --required
       - run: npm test
       - name: Build for the Pages sub-path
         run: npm run build
         env:
           # e.g. "/Tennis/" for https://<user>.github.io/Tennis/
           BASE_PATH: ${{ steps.pages.outputs.base_path }}/
-      - name: Check the pose model was bundled
-        run: test "$(stat -c %s dist/models/pose_landmarker_lite.task)" -gt 1000000
+      - name: Check the pose model and voice clips were bundled
+        run: |
+          test "$(stat -c %s dist/models/pose_landmarker_lite.task)" -gt 1000000
+          test -s dist/audio/zh-CN/speech.test.mp3
+          test -s dist/audio/manifest.json
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

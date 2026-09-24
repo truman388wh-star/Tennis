@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isAllowedUrl } from '../src/privacy/networkGuard';
-import { pickLocalVoice } from '../src/speech/SpeechOutput';
+import { pickVoice } from '../src/speech/SpeechOutput';
 import { DEFAULT_CONFIG } from '../src/config/config';
 
 const ORIGIN = 'https://truman388wh-star.github.io';
@@ -22,7 +22,7 @@ describe('network guard URL policy', () => {
   });
 });
 
-describe('speech voice selection (on-device only)', () => {
+describe('speech voice selection', () => {
   const voices = [
     { lang: 'en-US', localService: false, name: 'Google US English' },
     { lang: 'zh-CN', localService: false, name: 'Google 普通话（中国大陆）' },
@@ -32,26 +32,27 @@ describe('speech voice selection (on-device only)', () => {
     { lang: 'zh-CN', localService: true, name: 'Tingting' },
     { lang: 'en-US', localService: true, name: 'Samantha' },
   ];
+  const only = (...names: string[]) => voices.filter((v) => names.includes(v.name));
 
-  it('en-US: picks the local US English voice, never the network one', () => {
-    expect(pickLocalVoice(voices, 'en-US')?.name).toBe('Samantha');
-    expect(pickLocalVoice(voices.filter((v) => v.name !== 'Samantha'), 'en-US')?.name).toBe('Daniel');
+  it('prefers an on-device voice of the exact language', () => {
+    expect(pickVoice(voices, 'en-US')?.name).toBe('Samantha');
+    expect(pickVoice(voices, 'zh-CN')?.name).toBe('Tingting');
   });
 
-  it('zh-CN: picks a local Mandarin voice, never the network one or Cantonese', () => {
-    expect(pickLocalVoice(voices, 'zh-CN')?.name).toBe('Tingting');
-    expect(pickLocalVoice(voices.filter((v) => v.name !== 'Tingting'), 'zh-CN')?.name).toBe('Meijia');
-    expect(pickLocalVoice([{ lang: 'zh_CN', localService: true }], 'zh-CN')).not.toBeNull();
-    expect(pickLocalVoice([{ lang: 'cmn-Hans-CN', localService: true }], 'zh-CN')).not.toBeNull();
+  it('zh-CN fallback order: zh-CN > zh-Hans-CN > zh-Hans/cmn > zh-* > Cantonese', () => {
+    expect(pickVoice(only('Google 普通话（中国大陆）', 'Meijia'), 'zh-CN')?.name).toBe('Google 普通话（中国大陆）');
+    expect(pickVoice([{ lang: 'zh-Hans-CN', localService: true, name: 'A' }, { lang: 'zh-Hans', localService: true, name: 'B' }], 'zh-CN')?.name).toBe('A');
+    expect(pickVoice([{ lang: 'zh-Hans', localService: false, name: 'B' }, { lang: 'zh-TW', localService: true, name: 'C' }], 'zh-CN')?.name).toBe('B');
+    expect(pickVoice([{ lang: 'cmn-Hans-CN', localService: true, name: 'D' }], 'zh-CN')?.name).toBe('D');
+    expect(pickVoice([{ lang: 'zh_CN', localService: true, name: 'E' }], 'zh-CN')?.name).toBe('E');
+    expect(pickVoice(only('Meijia', 'Sinji (Cantonese)'), 'zh-CN')?.name).toBe('Meijia');
+    expect(pickVoice(only('Sinji (Cantonese)'), 'zh-CN')?.name).toBe('Sinji (Cantonese)');
   });
 
-  it('returns null (text only) when only network or wrong-language voices exist', () => {
-    const remoteOnly = voices.filter((v) => !v.localService);
-    expect(pickLocalVoice(remoteOnly, 'en-US')).toBeNull();
-    expect(pickLocalVoice(remoteOnly, 'zh-CN')).toBeNull();
-    expect(pickLocalVoice([{ lang: 'zh-HK', localService: true }], 'zh-CN')).toBeNull();
-    expect(pickLocalVoice([{ lang: 'en-US', localService: true }], 'zh-CN')).toBeNull();
-    expect(pickLocalVoice([{ lang: 'zh-CN', localService: true }], 'en-US')).toBeNull();
+  it('returns null when the language has no voice (default system voice + utterance.lang is used then)', () => {
+    expect(pickVoice(only('Samantha', 'Daniel'), 'zh-CN')).toBeNull();
+    expect(pickVoice(only('Tingting'), 'en-US')).toBeNull();
+    expect(pickVoice([], 'zh-CN')).toBeNull();
   });
 });
 

@@ -14,44 +14,92 @@ const LOCAL_EN: FakeVoice = { name: 'Samantha', lang: 'en-US', localService: tru
 const REMOTE_ZH: FakeVoice = { name: 'Google 普通话（中国大陆）', lang: 'zh-CN', localService: false };
 const REMOTE_EN: FakeVoice = { name: 'Google US English', lang: 'en-US', localService: false };
 
+interface MockOptions {
+  /** Voices only appear after this many ms (then voiceschanged fires). */
+  voicesDelayMs?: number;
+  /** 'error': every utterance fails before starting (engine cannot speak). */
+  mode?: 'ok' | 'error';
+  /** Remove the Web Speech API entirely. */
+  noSpeechApi?: boolean;
+}
+
 /**
  * Replaces the browser speech engine with a recorder that exposes the given
  * voice list, so tests can check exactly what is spoken and with which voice.
+ * Also records <audio> playback (the bundled-clip fallback).
  */
-async function mockSpeech(page: Page, voices: FakeVoice[]): Promise<void> {
-  await page.addInitScript((list: FakeVoice[]) => {
-    const w = window as unknown as Record<string, unknown>;
-    const spoken: { text: string; lang: string; voice: string | null; local: boolean | null }[] = [];
-    w.__spoken = spoken;
-    class FakeUtterance {
-      lang = '';
-      voice: FakeVoice | null = null;
-      rate = 1;
-      onend: (() => void) | null = null;
-      onerror: (() => void) | null = null;
-      constructor(public text: string) {}
-    }
-    const synth = {
-      speaking: false,
-      pending: false,
-      getVoices: () => list,
-      speak(u: FakeUtterance) {
-        spoken.push({ text: u.text, lang: u.lang, voice: u.voice?.name ?? null, local: u.voice?.localService ?? null });
-        setTimeout(() => u.onend?.(), 30);
-      },
-      cancel() {},
-      addEventListener() {},
-      removeEventListener() {},
-    };
-    Object.defineProperty(window, 'speechSynthesis', { value: synth, configurable: true });
-    w.SpeechSynthesisUtterance = FakeUtterance;
-  }, voices);
+async function mockSpeech(page: Page, voices: FakeVoice[], opts: MockOptions = {}): Promise<void> {
+  await page.addInitScript(
+    ({ list, opts }: { list: FakeVoice[]; opts: MockOptions }) => {
+      const w = window as unknown as Record<string, unknown>;
+      const spoken: { text: string; lang: string; voice: string | null; local: boolean | null }[] = [];
+      const clips: string[] = [];
+      w.__spoken = spoken;
+      w.__clips = clips;
+      const originalPlay = HTMLMediaElement.prototype.play;
+      HTMLMediaElement.prototype.play = function (this: HTMLMediaElement) {
+        if (!this.muted) clips.push(new URL(this.src).pathname);
+        return originalPlay.call(this);
+      };
+      if (opts.noSpeechApi) {
+        Object.defineProperty(window, 'speechSynthesis', { value: undefined, configurable: true });
+        return;
+      }
+      class FakeUtterance {
+        lang = '';
+        voice: FakeVoice | null = null;
+        rate = 1;
+        volume = 1;
+        onstart: (() => void) | null = null;
+        onend: (() => void) | null = null;
+        onerror: ((e: { error: string }) => void) | null = null;
+        constructor(public text: string) {}
+      }
+      let current: FakeVoice[] = opts.voicesDelayMs ? [] : list;
+      const listeners: (() => void)[] = [];
+      if (opts.voicesDelayMs) {
+        setTimeout(() => {
+          current = list;
+          listeners.forEach((l) => l());
+        }, opts.voicesDelayMs);
+      }
+      const synth = {
+        speaking: false,
+        pending: false,
+        getVoices: () => current,
+        speak(u: FakeUtterance) {
+          spoken.push({ text: u.text, lang: u.lang, voice: u.voice?.name ?? null, local: u.voice?.localService ?? null });
+          if (opts.mode === 'error') {
+            setTimeout(() => u.onerror?.({ error: 'synthesis-failed' }), 20);
+          } else {
+            setTimeout(() => u.onstart?.(), 10);
+            setTimeout(() => u.onend?.(), 40);
+          }
+        },
+        cancel() {},
+        resume() {},
+        addEventListener(type: string, l: () => void) {
+          if (type === 'voiceschanged') listeners.push(l);
+        },
+        removeEventListener() {},
+      };
+      Object.defineProperty(window, 'speechSynthesis', { value: synth, configurable: true });
+      w.SpeechSynthesisUtterance = FakeUtterance;
+    },
+    { list: voices, opts },
+  );
 }
 
-function spoken(page: Page) {
-  return page.evaluate(
-    () => (window as unknown as { __spoken: { text: string; lang: string; voice: string | null; local: boolean | null }[] }).__spoken,
+/** Spoken utterances with real text (the silent unlock utterance is ' '). */
+async function spoken(page: Page) {
+  const all = await page.evaluate(
+    () => (window as unknown as { __spoken: { text: string; lang: string; voice: string | null; local: boolean | null }[] }).__spoken ?? [],
   );
+  return all.filter((s) => s.text.trim().length > 0);
+}
+
+function clipsPlayed(page: Page) {
+  return page.evaluate(() => (window as unknown as { __clips: string[] }).__clips ?? []);
 }
 
 function externalRequests(page: Page): string[] {
@@ -107,8 +155,7 @@ test.describe('Chinese device', () => {
     await page.locator('#demo').click();
     await strokes(page, 2);
     await expect(page.locator('#feedback-text')).toHaveText(/击球点|好球|很好/);
-    const said = await spoken(page);
-    const cues = said.filter((s) => s.text);
+    const cues = await spoken(page);
     expect(cues.length).toBeGreaterThan(0);
     expect(cues[0].text).toBe('击球点太晚了'); // first demo stroke is a late contact
     for (const s of cues) {
@@ -127,19 +174,72 @@ test.describe('Chinese device', () => {
     expect(ext).toEqual([]);
   });
 
-  test('shows text only (never an online voice) when no local Mandarin voice exists', async ({ page }) => {
+  test('uses a Chinese voice even if it is not on-device, when no local one exists', async ({ page }) => {
     await mockSpeech(page, [REMOTE_ZH, LOCAL_EN, REMOTE_EN]);
-    const ext = externalRequests(page);
     await page.goto('./');
     await page.locator('#demo').click();
     await strokes(page, 1);
     await expect(page.locator('#feedback-text')).toHaveText('击球点太晚了');
-    await expect(page.locator('#feedback-meta')).toContainText('未播报');
-    await expect(page.locator('#notice')).toBeVisible();
-    await expect(page.locator('#notice')).toContainText('没有本地中文语音');
-    const said = (await spoken(page)).filter((s) => s.text);
-    expect(said).toEqual([]); // nothing spoken, in particular not with the Google voice
+    const cues = await spoken(page);
+    expect(cues[0]).toMatchObject({ text: '击球点太晚了', voice: REMOTE_ZH.name, lang: 'zh-CN' });
+    await expect(page.locator('#notice')).toBeHidden();
+  });
+
+  test('waits for voices that load late (voiceschanged) instead of giving up', async ({ page }) => {
+    await mockSpeech(page, [LOCAL_EN, LOCAL_ZH], { voicesDelayMs: 800 });
+    await page.goto('./');
+    await page.waitForTimeout(1200);
+    await page.locator('#demo').click();
+    await strokes(page, 1);
+    expect((await spoken(page))[0]).toMatchObject({ text: '击球点太晚了', voice: 'Tingting' });
+  });
+
+  test('no Chinese voice at all: speaks with the default system voice and lang=zh-CN', async ({ page }) => {
+    await mockSpeech(page, [LOCAL_EN]);
+    await page.goto('./');
+    await page.locator('#demo').click();
+    await strokes(page, 1);
+    const cues = await spoken(page);
+    expect(cues[0]).toMatchObject({ text: '击球点太晚了', voice: null, lang: 'zh-CN' });
+    await expect(page.locator('#notice')).toBeHidden();
+    expect(await clipsPlayed(page)).toEqual([]);
+  });
+
+  test('speech engine cannot speak: plays the bundled Chinese audio clip', async ({ page }) => {
+    await mockSpeech(page, [LOCAL_ZH], { mode: 'error' });
+    const ext = externalRequests(page);
+    await page.goto('./');
+    await page.locator('#demo').click();
+    await strokes(page, 1);
+    await expect.poll(() => clipsPlayed(page)).toEqual(expect.arrayContaining([expect.stringMatching(/\/audio\/zh-CN\/issue\.late-contact\.now\.mp3$/)]));
     expect(ext).toEqual([]);
+  });
+
+  test('no Web Speech API at all: plays the bundled Chinese audio clip', async ({ page }) => {
+    await mockSpeech(page, [], { noSpeechApi: true });
+    await page.goto('./');
+    await page.locator('#demo').click();
+    await strokes(page, 1);
+    await expect.poll(() => clipsPlayed(page)).toEqual(expect.arrayContaining([expect.stringMatching(/\/audio\/zh-CN\/issue\.late-contact\.now\.mp3$/)]));
+  });
+
+  test('voice test button and the 语音 button speak Chinese immediately', async ({ page }) => {
+    await mockSpeech(page, [LOCAL_ZH]);
+    await page.goto('./');
+    await page.locator('#voice-test').click();
+    await expect.poll(async () => (await spoken(page)).map((s) => s.text)).toContain('语音测试成功，现在可以正常播放中文。');
+    await page.locator('#voice').click(); // off
+    await expect(page.locator('#voice')).toHaveText('🔇 静音');
+    await page.locator('#voice').click(); // on again -> audible confirmation
+    await expect(page.locator('#voice')).toHaveText('🔊 语音');
+    await expect.poll(async () => (await spoken(page)).map((s) => s.text)).toContain('语音已开启');
+  });
+
+  test('voice test falls back to the bundled clip when speech fails', async ({ page }) => {
+    await mockSpeech(page, [], { mode: 'error' });
+    await page.goto('./');
+    await page.locator('#voice-test').click();
+    await expect.poll(() => clipsPlayed(page), { timeout: 8000 }).toEqual(expect.arrayContaining([expect.stringMatching(/\/audio\/zh-CN\/speech\.test\.mp3$/)]));
   });
 });
 
@@ -163,7 +263,7 @@ test.describe('English device', () => {
     await page.goto('./');
     await page.locator('#demo').click();
     await strokes(page, 2);
-    const cues = (await spoken(page)).filter((s) => s.text);
+    const cues = await spoken(page);
     expect(cues[0].text).toBe('Contact point was too late.');
     for (const s of cues) {
       expect(s.voice).toBe('Samantha');
@@ -172,14 +272,12 @@ test.describe('English device', () => {
     expect(ext).toEqual([]);
   });
 
-  test('shows text only when no local English voice exists', async ({ page }) => {
+  test('uses the best English voice available, local first', async ({ page }) => {
     await mockSpeech(page, [REMOTE_EN, LOCAL_ZH]);
     await page.goto('./');
     await page.locator('#demo').click();
     await strokes(page, 1);
-    await expect(page.locator('#feedback-text')).toHaveText('Contact point was too late.');
-    await expect(page.locator('#notice')).toContainText('no on-device English voice');
-    expect((await spoken(page)).filter((s) => s.text)).toEqual([]);
+    expect((await spoken(page))[0]).toMatchObject({ text: 'Contact point was too late.', voice: REMOTE_EN.name });
   });
 });
 
@@ -207,7 +305,7 @@ test.describe('switching language', () => {
     // Next spoken cues use the English on-device voice.
     const before = (await spoken(page)).length;
     await strokes(page, 3);
-    const after = (await spoken(page)).slice(before).filter((s) => s.text);
+    const after = (await spoken(page)).slice(before);
     expect(after.length).toBeGreaterThan(0);
     for (const s of after) {
       expect(s.voice).toBe('Samantha');

@@ -2,8 +2,8 @@
 // cache-first for large immutable assets (WASM runtime, pose model, hashed
 // bundles). Only same-origin GET requests are handled; video never leaves the
 // device and is never cached.
-const CACHE = 'tennis-coach-v1';
-const IMMUTABLE = /\/(assets|mediapipe|models)\//;
+const CACHE = 'tennis-coach-v2';
+const IMMUTABLE = /\/(assets|mediapipe|models|audio)\//;
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(['./', './index.html', './manifest.webmanifest', './icon.svg'])));
