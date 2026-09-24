@@ -81,6 +81,7 @@ export class FeatureExtractor implements FeatureExtractorLike {
       stanceWidth: null,
       ankleCenter: null,
       head: get(LM.NOSE),
+      facing: null,
       visibility,
     });
 
@@ -115,6 +116,12 @@ export class FeatureExtractor implements FeatureExtractorLike {
       this.shoulderRef = clamp(Math.max(this.shoulderRef, shoulderW), this.cfg.shoulderWidthMin, this.cfg.shoulderWidthMax);
     if (hipW !== null) this.hipRef = clamp(Math.max(this.hipRef, hipW), this.cfg.hipWidthMin, this.cfg.hipWidthMax);
 
+    const nose = get(LM.NOSE);
+    const lEar = get(LM.LEFT_EAR);
+    const rEar = get(LM.RIGHT_EAR);
+    const earMid = lEar && rEar ? midpoint(lEar, rEar) : (lEar ?? rEar);
+    const facing = nose && earMid ? (nose.x - earMid.x) / s : null;
+
     const lAnk = get(LM.LEFT_ANKLE);
     const rAnk = get(LM.RIGHT_ANKLE);
 
@@ -139,7 +146,8 @@ export class FeatureExtractor implements FeatureExtractorLike {
       trunkLean: tiltFromVertical(sub(shoulderCenter, hipCenter)),
       stanceWidth: lAnk && rAnk ? distance(lAnk, rAnk) / s : null,
       ankleCenter: lAnk && rAnk ? midpoint(lAnk, rAnk) : null,
-      head: get(LM.NOSE),
+      head: nose,
+      facing,
       visibility,
     };
   }

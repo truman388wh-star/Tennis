@@ -87,6 +87,8 @@ export interface DetectionConfig {
   twoHandedMaxDistance: number;
   /** ...for at least this fraction of the fast swing frames. */
   twoHandedMinFraction: number;
+  /** Minimum nose-ahead-of-ears offset (T) for the facing cue to be trusted. */
+  facingMinOffset: number;
   /** Learned net direction needs this many strokes and agreement ratio. */
   directionMinVotes: number;
   directionMinAgreement: number;
@@ -245,6 +247,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     maxTrackingGapMs: 300,
     twoHandedMaxDistance: 0.35,
     twoHandedMinFraction: 0.7,
+    facingMinOffset: 0.05,
     directionMinVotes: 2,
     directionMinAgreement: 0.75,
   },
@@ -337,7 +340,10 @@ type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]>
 
 /** Returns a copy of the default config with overrides deep-merged in. */
 export function createConfig(overrides: DeepPartial<AppConfig> = {}): AppConfig {
-  return deepMerge(structuredClone(DEFAULT_CONFIG), overrides) as AppConfig;
+  return deepMerge(
+    structuredClone(DEFAULT_CONFIG) as unknown as Record<string, unknown>,
+    overrides as Record<string, unknown>,
+  ) as unknown as AppConfig;
 }
 
 function deepMerge(target: Record<string, unknown>, source: Record<string, unknown>): Record<string, unknown> {

@@ -10,6 +10,9 @@
 //   followThrough ──speed > peak──▶ swinging   (the first peak was only the
 //                                                backswing; keep the faster one)
 //   followThrough ──confirmDelay after peak──▶ validate ─▶ emit ─▶ cooldown
+// Validation rejects swings that are too slow or short, two-handed, or that
+// go against the net direction (learned from earlier strokes, configured, or,
+// before either is known, inferred from which way the player's face points).
 //   cooldown ──cooldownMs──▶ idle
 // Waiting `confirmDelayMs` after the peak lets the follow-through be observed
 // before analysis and prevents one swing from producing two events.
@@ -38,6 +41,8 @@ interface Peak {
   t: number;
   speed: number;
   vx: number;
+  /** Facing cue at the peak (see BodyFeatures.facing). */
+  facing: number | null;
 }
 
 export class HeuristicStrokeDetector implements StrokeEventDetector {
@@ -180,7 +185,7 @@ export class HeuristicStrokeDetector implements StrokeEventDetector {
 
   private trackPeak(f: BodyFeatures, speed: number): void {
     if (this.peak && speed <= this.peak.speed) return;
-    this.peak = { t: f.t, speed, vx: f.wristVel?.x ?? 0 };
+    this.peak = { t: f.t, speed, vx: f.wristVel?.x ?? 0, facing: f.facing };
   }
 
   private finalize(t: number): DetectorUpdate {
@@ -197,6 +202,17 @@ export class HeuristicStrokeDetector implements StrokeEventDetector {
     else if (this.fastFrames > 0 && this.handsTogetherFrames / this.fastFrames >= this.cfg.twoHandedMinFraction)
       reason = 'two-handed';
     else if (known !== null && swingSign !== known) reason = 'wrong-direction';
+    else if (
+      known === null &&
+      peak.facing !== null &&
+      Math.abs(peak.facing) >= this.cfg.facingMinOffset &&
+      Math.sign(peak.facing) !== swingSign
+    ) {
+      // Direction not learned yet: a fast swing *away* from where the player
+      // faces is a backswing, not a forehand. Don't let it teach the
+      // direction estimator the wrong way.
+      reason = 'backswing';
+    }
 
     if (reason) {
       this.toIdle();

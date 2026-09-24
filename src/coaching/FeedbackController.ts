@@ -116,15 +116,18 @@ export class FeedbackController implements CoachingDecider {
     };
   }
 
-  /** An issue spoken in the last few strokes that is now (nearly) absent. */
+  /**
+   * The most recently spoken issue, if it was spoken within the look-back and
+   * is now (nearly) absent. An issue whose improvement was already
+   * acknowledged is closed, so "Better." is said once, not on every stroke.
+   */
   private findImprovement(issues: IssueAssessment[], memory: CoachingMemory): string | null {
-    const recent = memory.recent(this.cfg.improvementLookback);
-    for (const r of recent) {
-      if (!r.spokenIssue || (r.spokenKind !== 'issue' && r.spokenKind !== 'repeat')) continue;
+    for (const r of memory.recent(this.cfg.improvementLookback)) {
+      if (!r.spokenIssue) continue;
+      if (r.spokenKind !== 'issue' && r.spokenKind !== 'repeat') return null;
       const now = issues.find((i) => i.id === r.spokenIssue)?.severity ?? 0;
       const before = r.severities[r.spokenIssue] ?? 0;
-      if (now < this.cfg.resolvedSeverity && before >= this.cfg.minIssueSeverity) return r.spokenIssue;
-      return null; // Only the most recently spoken issue is checked.
+      return now < this.cfg.resolvedSeverity && before >= this.cfg.minIssueSeverity ? r.spokenIssue : null;
     }
     return null;
   }

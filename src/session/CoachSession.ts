@@ -61,7 +61,7 @@ export class CoachSession {
   private readonly maxAnalyses = 2000;
 
   constructor(
-    private readonly config: AppConfig,
+    config: AppConfig,
     readonly stages: PipelineStages,
   ) {
     this.buffer = new PoseBuffer(config.detection.bufferWindowMs);

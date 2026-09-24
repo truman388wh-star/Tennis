@@ -76,6 +76,11 @@ export interface BodyFeatures {
   ankleCenter: Vec2 | null;
   /** Nose, absolute image units. */
   head: Vec2 | null;
+  /**
+   * Horizontal offset of the nose from the ear midpoint (T). In a side view
+   * the face points towards the net, so its sign indicates "forward".
+   */
+  facing: number | null;
   /** Mean visibility of the key landmarks (0..1). */
   visibility: number;
 }

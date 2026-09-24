@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0d1f16" />
+    <meta name="description" content="On-device AI forehand coach: live pose analysis and spoken feedback while you practice." />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./icon-192.png" />
+    <title>AI Tennis Coach</title>
+  </head>
+  <body>
+    <main id="app">
+      <section class="stage" id="stage">
+        <video id="video" playsinline muted></video>
+        <canvas id="overlay" aria-hidden="true"></canvas>
+
+        <div class="topbar">
+          <span class="pill" id="status" data-kind="idle">Not started</span>
+          <span class="pill phase" id="phase" hidden>Ready</span>
+          <span class="pill subtle" id="perf" hidden></span>
+        </div>
+
+        <div class="feedback" id="feedback" aria-live="polite" hidden>
+          <div class="feedback-text" id="feedback-text"></div>
+          <div class="feedback-meta" id="feedback-meta"></div>
+        </div>
+
+        <div class="intro" id="intro">
+          <h1>AI Tennis Coach</h1>
+          <p class="lead">Forehand feedback while you practice. Everything runs on this phone.</p>
+          <ol>
+            <li>Stand the phone <strong>beside you, level with the baseline</strong>, 4–6 m away, so your <strong>whole body</strong> is in view.</li>
+            <li>Set your dominant hand in <strong>Settings</strong>.</li>
+            <li>Tap <strong>Start</strong> and just keep hitting. The app picks up each forehand and tells you one thing about it.</li>
+          </ol>
+          <p class="note">Contact timing is <em>estimated</em> from your arm movement, because the app doesn't see the ball or racket. The scores are rough, rule-based estimates, not a coach's judgement.</p>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="score-card" id="score-card">
+          <div class="score-main">
+            <div class="score-value na" id="score-value">–</div>
+            <div class="score-label">Last stroke<span id="stroke-count"></span></div>
+          </div>
+          <div class="subscores" id="subscores"></div>
+        </div>
+
+        <div class="history" id="history" aria-label="Recent stroke scores"></div>
+
+        <details class="details" id="metrics-details">
+          <summary>Stroke details</summary>
+          <dl id="metrics"></dl>
+        </details>
+
+        <div class="controls">
+          <button id="start" class="primary">Start</button>
+          <button id="voice" aria-pressed="true" title="Voice feedback">🔊 Voice on</button>
+          <button id="settings-btn" title="Settings">⚙︎ Settings</button>
+        </div>
+        <div class="controls secondary">
+          <button id="demo" class="link">Try demo (no camera)</button>
+          <label class="link file-label">Analyze a video file<input type="file" id="file" accept="video/*" hidden /></label>
+        </div>
+        <div class="error" id="error" role="alert" hidden></div>
+      </section>
+    </main>
+
+    <dialog id="settings">
+      <form method="dialog" class="dialog-body">
+        <h2>Settings</h2>
+        <label>Dominant hand
+          <select id="set-hand">
+            <option value="right">Right-handed</option>
+            <option value="left">Left-handed</option>
+          </select>
+        </label>
+        <label>Net is on the … side of the screen
+          <select id="set-net">
+            <option value="auto">Detect automatically</option>
+            <option value="left">Left</option>
+            <option value="right">Right</option>
+          </select>
+        </label>
+        <label>Camera
+          <select id="set-camera">
+            <option value="environment">Back camera</option>
+            <option value="user">Front camera</option>
+          </select>
+        </label>
+        <label>Pose analysis rate: <output id="set-fps-out">30</output> fps
+          <input type="range" id="set-fps" min="10" max="60" step="5" value="30" />
+        </label>
+        <p class="note">Lower the rate if the phone gets hot or struggles to keep up. The app also reduces it automatically. Changes apply the next time you press Start.</p>
+        <div class="dialog-actions"><button value="close" class="primary">Done</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="summary">
+      <form method="dialog" class="dialog-body">
+        <h2>Session summary</h2>
+        <div id="summary-content"></div>
+        <div class="dialog-actions"><button value="close" class="primary">Close</button></div>
+      </form>
+    </dialog>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

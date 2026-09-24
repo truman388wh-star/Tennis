@@ -43,7 +43,7 @@ export interface ForehandParams {
 export const GOOD_FOREHAND: ForehandParams = {
   shoulderTurnDeg: 80,
   hipTurnDeg: 45,
-  contactForward: 0.6,
+  contactForward: 0.6, // = GOOD_CONTACT
   followThroughHeight: 0.4,
   weightShift: 0.4,
   leanDeg: 5,
@@ -124,6 +124,7 @@ interface BodyPose {
   headSway: number;
 }
 
+const GOOD_CONTACT = 0.6;
 const READY_WRIST: [number, number, number] = [0.7, 0.3, 0.5];
 
 function strokePose(tau: number, p: ForehandParams): BodyPose {
@@ -149,7 +150,10 @@ function strokePose(tau: number, p: ForehandParams): BodyPose {
   const ft = p.followThroughHeight;
   // Forward swing keyframes are spaced so that wrist speed peaks around the
   // contact keyframe, then the wrist continues forward, rises and wraps.
-  const wx: Key[] = [[0, 0.7], [T(300), -0.3], [T(600), -1.4], [T(740), -1.0], [T(880), cf], [T(1000), cf + 0.9], [T(1150), 0.4], [T(1350), 0.0], [T(1800), 0.7]];
+  // A late contact delays the loop as well (the arm lags behind the body),
+  // so that wrist speed still peaks near the contact point.
+  const lag = cf - GOOD_CONTACT;
+  const wx: Key[] = [[0, 0.7], [T(300), -0.3], [T(600), -1.4], [T(740), -1.0 + lag], [T(880), cf], [T(1000), cf + 0.9], [T(1150), 0.4], [T(1350), 0.0], [T(1800), 0.7]];
   const wy: Key[] = [[0, 0.3], [T(300), 0.9], [T(600), 0.9], [T(740), 0.0], [T(880), 0.2], [T(1000), 0.7 + ft], [T(1150), 1.0 + ft], [T(1350), 1.0 + ft], [T(1800), 0.3]];
   const wz: Key[] = [[0, 0.5], [T(300), 0.9], [T(600), 0.9], [T(740), 1.0], [T(880), 1.1], [T(1000), 0.6], [T(1150), -0.3], [T(1350), -0.8], [T(1800), 0.5]];
 
@@ -214,10 +218,13 @@ function bodyLandmarks(pose: BodyPose, p: ForehandParams, hand: Handedness): Map
   const backAnkle: V3 = [-half, 0, d * 0.2];
   const knee = (hipP: V3, ank: V3): V3 => [(hipP[0] + ank[0]) / 2 + 0.1, (hipP[1] + ank[1]) / 2, (hipP[2] + ank[2]) / 2];
   const nose: V3 = [sh[0] + 0.15 + pose.headSway, sh[1] + 0.45, 0];
+  const ear = (side: number): V3 => [sh[0] - 0.05 + pose.headSway, sh[1] + 0.48, side * 0.15];
 
   const R = hand === 'right';
   const m = new Map<number, V3>();
   m.set(LM.NOSE, nose);
+  m.set(LM.LEFT_EAR, ear(-d));
+  m.set(LM.RIGHT_EAR, ear(d));
   m.set(R ? LM.RIGHT_SHOULDER : LM.LEFT_SHOULDER, domSh);
   m.set(R ? LM.LEFT_SHOULDER : LM.RIGHT_SHOULDER, offSh);
   m.set(R ? LM.RIGHT_ELBOW : LM.LEFT_ELBOW, elbow);

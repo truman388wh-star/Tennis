@@ -4,7 +4,7 @@
 //   2. downloads the Pose Landmarker Lite model into public/models/ (once)
 // Safe to run repeatedly. A failed model download is a warning, not an error:
 // the app then falls back to the official model URL at runtime.
-import { cpSync, existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -19,8 +19,11 @@ if (!existsSync(wasmSrc)) {
   console.error('[setup-assets] @mediapipe/tasks-vision is not installed. Run `npm install` first.');
   process.exit(1);
 }
+// The app loads the classic (non-ES-module) SIMD build, with the no-SIMD
+// build as fallback for old devices; the ES-module variant is not needed.
+rmSync(wasmDst, { recursive: true, force: true });
 mkdirSync(wasmDst, { recursive: true });
-cpSync(wasmSrc, wasmDst, { recursive: true });
+cpSync(wasmSrc, wasmDst, { recursive: true, filter: (src) => !src.includes('wasm_module_internal') });
 console.log('[setup-assets] MediaPipe WASM copied to public/mediapipe/wasm');
 
 const haveModel = existsSync(modelDst) && statSync(modelDst).size > 100_000;
