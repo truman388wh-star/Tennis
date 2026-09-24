@@ -17,6 +17,11 @@ export default defineConfig({
       ],
     },
     permissions: ['camera'],
+    // Never record screenshots, videos or traces (privacy; nothing is uploaded
+    // from CI either). The fake camera only shows Chromium's test pattern.
+    screenshot: 'off',
+    video: 'off',
+    trace: 'off',
   },
   webServer: process.env.E2E_BASE_URL ? undefined : {
     command: 'npx vite preview --port 4173 --strictPort',

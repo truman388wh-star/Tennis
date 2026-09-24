@@ -213,9 +213,7 @@ These parts can't be tested without a real device and player:
 
 ## Privacy
 
-- Video is processed **frame by frame in the browser** and never recorded, stored or uploaded.
-- There is no backend, account or analytics. The app's only network requests are for its own files (and, only if the local model is missing, Google's model file).
-- Settings are stored in `localStorage` on the device. A "video file" analysis reads the file locally.
+Camera video **never leaves the device**. Pose inference runs in the browser (MediaPipe WebAssembly). Only 33 landmark coordinates per frame are kept, in memory, for about 3 seconds. Nothing is recorded, uploaded or saved except your settings. A network guard and a Content-Security-Policy restrict the page to its own static files; together they also block MediaPipe's built-in usage telemetry (`odml.pa.googleapis.com`). Speech uses on-device voices only. Full details, including exactly what is stored and sent: **[PRIVACY.md](PRIVACY.md)**.
 
 ## Limitations
 
