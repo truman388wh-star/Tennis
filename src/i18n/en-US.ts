@@ -187,6 +187,10 @@ export const enUS = {
     processing: 'Processing error: {message}',
   },
 
+  camera: {
+    zoom: 'Camera zoom',
+  },
+
   speech: {
     testButton: 'Test voice',
     test: 'Voice test successful. Speech is working.',

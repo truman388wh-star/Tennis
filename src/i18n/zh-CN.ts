@@ -175,6 +175,10 @@ export const zhCN: Messages = {
     processing: '处理出错：{message}',
   },
 
+  camera: {
+    zoom: '摄像头变焦',
+  },
+
   speech: {
     testButton: '测试语音',
     test: '语音测试成功，现在可以正常播放中文。',
