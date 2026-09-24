@@ -19,8 +19,10 @@
 
 import type { CoachingConfig } from '../config/config';
 import type { CoachingFeedback, IssueAssessment, StrokeScore } from '../types';
+import { messageId, type CoachingMessageKey } from './messageKeys';
+import type { IssueId } from './issues';
 import type { CoachingMemory } from './CoachingMemory';
-import { GOOD_STROKE, ISSUE_BY_ID, LOW_VISIBILITY, LOW_VISIBILITY_REPEATED, PRAISE, PRAISE_ORDER } from './issues';
+import { PRAISE_ORDER } from './issues';
 
 export const PRIORITY = { praise: 1, issue: 2, improvement: 2, severe: 3 } as const;
 
@@ -39,7 +41,7 @@ export class FeedbackController implements CoachingDecider {
       const recurring = recentLow >= 1;
       const alreadySaid = memory.strokesSinceSpoken((r) => r.spokenKind === 'visibility') <= cfg.repeatCooldownStrokes;
       return {
-        text: recurring ? LOW_VISIBILITY_REPEATED : LOW_VISIBILITY,
+        message: { type: 'visibility', repeated: recurring },
         kind: 'visibility',
         issueId: null,
         priority: PRIORITY.issue,
@@ -56,9 +58,8 @@ export class FeedbackController implements CoachingDecider {
     if (!severe) {
       const improved = this.findImprovement(issues, memory);
       if (improved) {
-        const def = ISSUE_BY_ID.get(improved)!;
         return {
-          text: def.messages.improved,
+          message: { type: 'issue', issue: improved, variant: 'improved' },
           kind: 'improvement',
           issueId: improved,
           priority: PRIORITY.improvement,
@@ -70,28 +71,32 @@ export class FeedbackController implements CoachingDecider {
 
     // 3. Primary issue.
     if (primary) {
-      const def = ISSUE_BY_ID.get(primary.id)!;
       const previousCount = memory.countPrimary(primary.id, cfg.repeatWindow - 1);
       const recurring = previousCount + 1 >= cfg.repeatCount;
       if (recurring) {
         const sinceRepeat = memory.strokesSinceSpoken((r) => r.spokenKind === 'repeat' && r.spokenIssue === primary.id);
         const speak = sinceRepeat > cfg.repeatCooldownStrokes;
         return {
-          text: def.messages.repeated,
+          message: { type: 'issue', issue: primary.id, variant: 'repeated' },
           kind: 'repeat',
           issueId: primary.id,
+          severity: primary.severity,
+          occurrences: previousCount + 1,
+          window: cfg.repeatWindow,
           priority: severe ? PRIORITY.severe : PRIORITY.issue,
           speak,
           reason: `${primary.id} in ${previousCount + 1} of last ${cfg.repeatWindow} strokes` +
             (speak ? '' : ' (recently said, not repeated)'),
         };
       }
-      const sinceSame = memory.strokesSinceSpoken((r) => r.spoken === def.messages.now);
+      const message: CoachingMessageKey = { type: 'issue', issue: primary.id, variant: 'now' };
+      const sinceSame = memory.strokesSinceSpoken((r) => r.spoken === messageId(message));
       const speak = severe || sinceSame > cfg.sameMessageCooldownStrokes;
       return {
-        text: def.messages.now,
+        message,
         kind: 'issue',
         issueId: primary.id,
+        severity: primary.severity,
         priority: severe ? PRIORITY.severe : PRIORITY.issue,
         speak,
         reason: `primary issue ${primary.id} severity ${primary.severity.toFixed(2)}` + (speak ? '' : ' (just said)'),
@@ -102,7 +107,7 @@ export class FeedbackController implements CoachingDecider {
     const praiseWorthy = score.overall >= cfg.praiseMinScore;
     const speak = praiseWorthy && memory.strokesSinceAnySpoken() >= cfg.praiseEveryStrokes;
     return {
-      text: praiseWorthy ? this.choosePraise(score, memory) : modestStrokeMessage(score.overall),
+      message: praiseWorthy ? this.choosePraise(score, memory) : modestStroke(score.overall),
       kind: 'praise',
       issueId: null,
       priority: PRIORITY.praise,
@@ -112,14 +117,16 @@ export class FeedbackController implements CoachingDecider {
   }
 
   /** Picks praise that was not said recently, so feedback stays varied. */
-  private choosePraise(score: StrokeScore, memory: CoachingMemory): string {
+  private choosePraise(score: StrokeScore, memory: CoachingMemory): CoachingMessageKey {
     const recent = new Set(memory.recent(4).map((r) => r.spoken));
-    if (score.overall >= 95 && !recent.has(GOOD_STROKE)) return GOOD_STROKE;
+    const good: CoachingMessageKey = { type: 'goodStroke' };
+    if (score.overall >= 95 && !recent.has(messageId(good))) return good;
     for (const c of PRAISE_ORDER) {
       const v = score.categories[c];
-      if (v !== null && v >= this.cfg.praiseCategoryMinScore && !recent.has(PRAISE[c])) return PRAISE[c];
+      const praise: CoachingMessageKey = { type: 'praise', category: c };
+      if (v !== null && v >= this.cfg.praiseCategoryMinScore && !recent.has(messageId(praise))) return praise;
     }
-    return GOOD_STROKE;
+    return good;
   }
 
   /**
@@ -127,7 +134,7 @@ export class FeedbackController implements CoachingDecider {
    * is now (nearly) absent. An issue whose improvement was already
    * acknowledged is closed, so "Better." is said once, not on every stroke.
    */
-  private findImprovement(issues: IssueAssessment[], memory: CoachingMemory): string | null {
+  private findImprovement(issues: IssueAssessment[], memory: CoachingMemory): IssueId | null {
     for (const r of memory.recent(this.cfg.improvementLookback)) {
       if (!r.spokenIssue) continue;
       if (r.spokenKind !== 'issue' && r.spokenKind !== 'repeat') return null;
@@ -139,6 +146,6 @@ export class FeedbackController implements CoachingDecider {
   }
 }
 
-function modestStrokeMessage(overall: number): string {
-  return overall >= 60 ? GOOD_STROKE : 'Okay. Keep going.';
+function modestStroke(overall: number): CoachingMessageKey {
+  return overall >= 60 ? { type: 'goodStroke' } : { type: 'okStroke' };
 }

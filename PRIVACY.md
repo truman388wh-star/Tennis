@@ -14,7 +14,7 @@ The app never records, saves or exports pixels: no `MediaRecorder`, no canvas-to
 
 | Storage | Contents |
 | --- | --- |
-| `localStorage` (`tennis-coach.settings.v1`) | Your settings only: dominant hand, net side, voice on/off, analysis rate, front/back camera |
+| `localStorage` (`tennis-coach.settings.v1`) | Your settings only: language (once chosen), dominant hand, net side, voice on/off, analysis rate, front/back camera |
 | Service worker cache | Copies of the app's static files (HTML, JS, CSS, MediaPipe WASM, pose model, icons) for offline use |
 | Memory (lost when the tab closes) | Landmarks of the last ~3 s, stroke results and the session summary |
 
@@ -33,9 +33,11 @@ This is enforced in two independent layers:
 
 `@mediapipe/tasks-vision` (v1.0.1) contains a usage logger that, by default, POSTs statistics to `https://odml.pa.googleapis.com/v1/log` every 60 seconds and when the task closes. These are the task type, running mode, OS family, SDK version, and model-load and inference-latency figures. It does not include images or landmarks. **This app blocks that request** with both layers above, and MediaPipe then disables its logger. A browser test (`e2e/privacy.spec.ts`) runs the camera past the 60-second interval and fails if any request leaves the origin. With the protections removed, it catches the MediaPipe request.
 
-### Voice feedback
+### Voice feedback and language
 
-Speech uses the browser's speech synthesis with **on-device voices only** (`localService === true`). Some browsers, notably desktop Chrome's "Google …" voices, synthesize speech on a server, which would send the coaching text off the device. The app never selects those voices. If only such voices are available, feedback is shown on screen and not spoken.
+Speech uses the browser's speech synthesis with **on-device voices only** (`localService === true`), in the selected language: a local Mandarin voice for 中文, a local English voice for English. Some browsers, notably desktop Chrome's "Google …" voices, synthesize speech on a server, which would send the coaching text off the device. The app never selects those voices, and it never falls back to the browser's default voice. If no local voice exists for the selected language, the cue is shown on screen and not spoken, with a short notice.
+
+Language resources are bundled with the app. Switching language loads nothing and makes no network request. The language preference is stored only in `localStorage` (`tennis-coach.settings.v1`, field `language`).
 
 ## What is in the repository and CI
 

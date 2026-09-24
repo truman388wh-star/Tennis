@@ -2,7 +2,7 @@
 
 import type { CategoryId, StrokeAnalysis } from '../types';
 import { CATEGORY_IDS } from '../types';
-import { ISSUE_BY_ID } from '../coaching/issues';
+import type { IssueId } from '../coaching/issues';
 import { mean, slope } from '../utils/stats';
 
 export interface SessionSummary {
@@ -12,7 +12,8 @@ export interface SessionSummary {
   /** Score change per stroke over the last (up to) 10 strokes. */
   recentTrend: number | null;
   trendLabel: 'improving' | 'steady' | 'declining' | 'not enough strokes';
-  mostFrequentIssue: { id: string; label: string; count: number } | null;
+  /** Issue id; the UI renders its localized name. */
+  mostFrequentIssue: { id: IssueId; count: number } | null;
   strongestArea: { category: CategoryId; average: number } | null;
   weakestArea: { category: CategoryId; average: number } | null;
   scores: number[];
@@ -26,7 +27,7 @@ export function summarizeSession(analyses: readonly StrokeAnalysis[], durationMs
   const trendLabel =
     trend === null ? 'not enough strokes' : trend > 1 ? 'improving' : trend < -1 ? 'declining' : 'steady';
 
-  const issueCounts = new Map<string, number>();
+  const issueCounts = new Map<IssueId, number>();
   for (const a of analyses) {
     if (a.feedback.issueId && (a.feedback.kind === 'issue' || a.feedback.kind === 'repeat')) {
       issueCounts.set(a.feedback.issueId, (issueCounts.get(a.feedback.issueId) ?? 0) + 1);
@@ -35,7 +36,7 @@ export function summarizeSession(analyses: readonly StrokeAnalysis[], durationMs
   let mostFrequentIssue: SessionSummary['mostFrequentIssue'] = null;
   for (const [id, count] of issueCounts) {
     if (!mostFrequentIssue || count > mostFrequentIssue.count) {
-      mostFrequentIssue = { id, count, label: ISSUE_BY_ID.get(id)?.messages.now ?? id };
+      mostFrequentIssue = { id, count };
     }
   }
 

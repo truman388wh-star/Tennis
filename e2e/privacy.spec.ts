@@ -20,6 +20,9 @@ function recordRequests(page: Page): Req[] {
 /** Static files the app is allowed to load (relative to the app's base URL). */
 const STATIC_FILE = /\/(|index\.html|sw\.js|manifest\.webmanifest|icon[-\w]*\.(svg|png)|assets\/[\w.-]+\.(js|css)|mediapipe\/wasm\/vision_wasm[\w]*\.(js|wasm)|models\/pose_landmarker_lite\.task)$/;
 
+for (const locale of ['en-US', 'zh-CN'] as const) test.describe(`in ${locale}`, () => {
+test.use({ locale });
+
 test('camera session sends nothing off-device, even after MediaPipe telemetry interval', async ({ page, baseURL }) => {
   const reqs = recordRequests(page);
   await page.clock.install();
@@ -27,8 +30,9 @@ test('camera session sends nothing off-device, even after MediaPipe telemetry in
   const origin = new URL(page.url()).origin;
 
   await page.locator('#start').click();
-  await expect(page.locator('#status')).toHaveText('Live', { timeout: 60_000 });
-  await expect(page.locator('#perf')).toHaveText(/^[1-9]\d* fps/, { timeout: 15_000 });
+  await expect(page.locator('#status')).toHaveAttribute('data-kind', 'live', { timeout: 60_000 });
+  await expect(page.locator('#perf')).toHaveText(/^[1-9]\d* /, { timeout: 15_000 });
+  expect(await page.evaluate(() => document.documentElement.lang)).toBe(locale);
 
   // MediaPipe's usage logger flushes every 60 s: jump past that, twice.
   await page.clock.fastForward(65_000);
@@ -57,6 +61,7 @@ test('camera session sends nothing off-device, even after MediaPipe telemetry in
   const csp = await page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute('content');
   expect(csp).toContain("connect-src 'self'");
 });
+});
 
 test('no training data is stored in the browser', async ({ page }) => {
   await page.goto('./');
@@ -78,12 +83,11 @@ test('no training data is stored in the browser', async ({ page }) => {
     return { local, session, idb, cached, cookies: document.cookie };
   });
 
-  // localStorage: only the settings object (hand, net side, voice, fps, camera).
+  // localStorage: only the settings object (language, hand, net side, voice, fps, camera).
   expect(Object.keys(stored.local).every((k) => k === 'tennis-coach.settings.v1')).toBe(true);
+  const allowed = ['cameraFacing', 'handedness', 'language', 'netDirection', 'targetPoseFps', 'voiceEnabled'];
   for (const v of Object.values(stored.local)) {
-    expect(Object.keys(JSON.parse(v as string)).sort()).toEqual(
-      ['cameraFacing', 'handedness', 'netDirection', 'targetPoseFps', 'voiceEnabled'],
-    );
+    for (const key of Object.keys(JSON.parse(v as string))) expect(allowed).toContain(key);
   }
   expect(stored.session).toEqual([]);
   expect(stored.idb).toEqual([]);

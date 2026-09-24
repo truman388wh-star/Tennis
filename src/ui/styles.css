@@ -313,7 +313,7 @@ body {
 }
 
 .history:empty::before {
-  content: 'Stroke history will appear here.';
+  content: attr(data-empty);
   color: var(--muted);
   font-size: 13px;
   align-self: center;
@@ -424,6 +424,14 @@ button:disabled {
 
 button[aria-pressed='false'] {
   color: var(--muted);
+}
+
+.notice {
+  background: color-mix(in srgb, var(--ok) 16%, transparent);
+  border: 1px solid var(--ok);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 14px;
 }
 
 .error {

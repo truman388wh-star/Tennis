@@ -4,6 +4,15 @@ import { QueuedSpeechOutput, type SpeechEngine } from '../src/speech/SpeechOutpu
 class FakeEngine implements SpeechEngine {
   spoken: string[] = [];
   stops = 0;
+  lang = 'en-US';
+  /** Languages with an on-device voice on this fake device. */
+  localVoices = new Set(['en-US', 'zh-CN']);
+  canSpeak(): boolean {
+    return this.localVoices.has(this.lang);
+  }
+  setLanguage(lang: string): void {
+    this.lang = lang;
+  }
   private onEnd: (() => void) | null = null;
   start(text: string, onEnd: () => void): void {
     if (text) this.spoken.push(text);
@@ -87,5 +96,29 @@ describe('QueuedSpeechOutput', () => {
     const t0 = performance.now();
     for (let i = 0; i < 1000; i++) out.speak(`m${i}`, 1);
     expect(performance.now() - t0).toBeLessThan(50);
+  });
+
+  it('reports "unavailable" and speaks nothing without an on-device voice for the language', () => {
+    const { engine, out } = setup();
+    engine.localVoices = new Set(['en-US']);
+    out.setLanguage('zh-CN');
+    expect(out.available).toBe(false);
+    expect(out.speak('击球点太晚了', 2)).toBe('unavailable');
+    out.unlock();
+    expect(engine.spoken).toEqual([]);
+    out.setLanguage('en-US');
+    expect(out.speak('Contact point was too late.', 2)).toBe('spoken');
+    expect(engine.spoken).toEqual(['Contact point was too late.']);
+  });
+
+  it('switching language stops speech in the old language', () => {
+    const { engine, out } = setup();
+    out.speak('Good stroke.', 1);
+    out.speak('Finish the follow-through.', 1);
+    out.setLanguage('zh-CN');
+    expect(engine.lang).toBe('zh-CN');
+    expect(out.speaking).toBeNull();
+    expect(out.queued).toBeNull();
+    expect(engine.stops).toBeGreaterThan(0);
   });
 });

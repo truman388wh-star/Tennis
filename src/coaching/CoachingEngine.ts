@@ -5,6 +5,7 @@ import type { CoachingFeedback, IssueAssessment, StrokeMetrics, StrokeScore } fr
 import { CoachingMemory } from './CoachingMemory';
 import { FeedbackController, type CoachingDecider } from './FeedbackController';
 import { evaluateIssues } from './IssueEvaluator';
+import { messageId } from './messageKeys';
 
 export class CoachingEngine {
   readonly memory: CoachingMemory;
@@ -29,7 +30,7 @@ export class CoachingEngine {
       categories: score.categories,
       primaryIssue: score.confidence >= this.coaching.minConfidence ? (relevant[0]?.id ?? null) : null,
       severities: Object.fromEntries(issues.map((i) => [i.id, i.severity])),
-      spoken: feedback.speak ? feedback.text : null,
+      spoken: feedback.speak ? messageId(feedback.message) : null,
       spokenKind: feedback.speak ? feedback.kind : null,
       spokenIssue: feedback.speak ? feedback.issueId : null,
     });

@@ -4,7 +4,8 @@ import { CoachingEngine } from '../src/coaching/CoachingEngine';
 import { CoachingMemory, type StrokeRecord } from '../src/coaching/CoachingMemory';
 import { FeedbackController } from '../src/coaching/FeedbackController';
 import { evaluateIssues } from '../src/coaching/IssueEvaluator';
-import { ISSUE_BY_ID, ISSUES, PRAISE } from '../src/coaching/issues';
+import { ISSUES } from '../src/coaching/issues';
+import { coachingText } from '../src/i18n';
 import { emptyMetrics } from '../src/metrics/MetricsCalculator';
 import { WeightedStrokeScorer } from '../src/scoring/StrokeScorer';
 import type { StrokeMetrics } from '../src/types';
@@ -54,7 +55,10 @@ function feed(e: CoachingEngine, m: StrokeMetrics, fr = frames) {
 describe('issue catalog', () => {
   it('has short messages and valid metrics for every issue', () => {
     for (const i of ISSUES) {
-      expect(i.messages.now.split(' ').length).toBeLessThanOrEqual(7);
+      const en = coachingText({ type: 'issue', issue: i.id, variant: 'now' }, 'en-US');
+      const zh = coachingText({ type: 'issue', issue: i.id, variant: 'now' }, 'zh-CN');
+      expect(en.split(' ').length).toBeLessThanOrEqual(7);
+      expect(zh.length).toBeLessThanOrEqual(10);
       expect(config.scoring.ranges[i.metric]).toBeDefined();
     }
     expect(new Set(ISSUES.map((i) => i.id)).size).toBe(ISSUES.length);
@@ -85,7 +89,10 @@ describe('evaluateIssues', () => {
 describe('FeedbackController with memory', () => {
   it('gives the short correction for a new issue', () => {
     const f = feed(engine(), late());
-    expect(f).toMatchObject({ kind: 'issue', issueId: 'late-contact', text: 'Contact point was too late.', speak: true });
+    expect(f).toMatchObject({ kind: 'issue', issueId: 'late-contact', speak: true });
+    expect(f.message).toEqual({ type: 'issue', issue: 'late-contact', variant: 'now' });
+    expect(coachingText(f.message, 'en-US')).toBe('Contact point was too late.');
+    expect(coachingText(f.message, 'zh-CN')).toBe('击球点太晚了');
   });
 
   it('praises a clean stroke', () => {
@@ -97,12 +104,12 @@ describe('FeedbackController with memory', () => {
   it('names a strong area when the stroke is good but not perfect', () => {
     const f = feed(engine(), { ...goodMetrics(), forwardSwingMs: 600 }); // timing down, no issue
     expect(f.kind).toBe('praise');
-    expect(f.text).toBe(PRAISE.contact);
+    expect(f.message).toEqual({ type: 'praise', category: 'contact' });
   });
 
   it('varies praise over consecutive good strokes', () => {
     const e = engine();
-    const texts = Array.from({ length: 4 }, () => feed(e, goodMetrics()).text);
+    const texts = Array.from({ length: 4 }, () => coachingText(feed(e, goodMetrics()).message, 'en-US'));
     expect(texts[0]).toBe('Good stroke.');
     expect(new Set(texts).size).toBeGreaterThan(1);
   });
@@ -119,7 +126,7 @@ describe('FeedbackController with memory', () => {
     const out = Array.from({ length: 8 }, () => feed(e, lowTurn()));
     expect(out[0].kind).toBe('issue');
     expect(out[2].kind).toBe('repeat');
-    expect(out[2].text).toBe(ISSUE_BY_ID.get('small-shoulder-turn')!.messages.repeated);
+    expect(out[2].message).toEqual({ type: 'issue', issue: 'small-shoulder-turn', variant: 'repeated' });
     expect(out[2].speak).toBe(true);
     // Not re-spoken on every following stroke.
     expect(out.slice(3, 7).filter((f) => f.speak)).toHaveLength(0);
@@ -130,7 +137,9 @@ describe('FeedbackController with memory', () => {
     const e = engine();
     feed(e, late());
     const better = feed(e, goodMetrics());
-    expect(better).toMatchObject({ kind: 'improvement', text: 'Better. Your contact point is earlier now.', speak: true });
+    expect(better).toMatchObject({ kind: 'improvement', speak: true });
+    expect(coachingText(better.message, 'en-US')).toBe('Good, your contact point is earlier now.');
+    expect(coachingText(better.message, 'zh-CN')).toBe('很好，击球点更靠前了');
     expect(feed(e, goodMetrics()).kind).toBe('praise');
   });
 
@@ -149,7 +158,8 @@ describe('FeedbackController with memory', () => {
     expect(first.speak).toBe(false);
     const second = feed(e, late(), poor);
     expect(second.speak).toBe(true);
-    expect(second.text).toMatch(/whole body/);
+    expect(coachingText(second.message, 'en-US')).toMatch(/whole body/);
+    expect(coachingText(second.message, 'zh-CN')).toBe('请让全身都在画面里');
   });
 
   it('memory is bounded and answers recency queries', () => {

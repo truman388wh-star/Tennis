@@ -17,6 +17,8 @@ export default defineConfig({
       ],
     },
     permissions: ['camera'],
+    // Default browser language for tests; i18n tests override it per test.
+    locale: 'en-US',
     // Never record screenshots, videos or traces (privacy; nothing is uploaded
     // from CI either). The fake camera only shows Chromium's test pattern.
     screenshot: 'off',

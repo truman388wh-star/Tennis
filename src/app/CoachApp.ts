@@ -4,7 +4,8 @@
 
 import { createConfig, type AppConfig, type UserSettings } from '../config/config';
 import { saveSettings } from '../config/settings';
-import { CameraSource, VideoFileSource, type FrameSource } from '../camera/FrameSource';
+import { CameraError, CameraSource, VideoFileSource, type FrameSource } from '../camera/FrameSource';
+import { coachingText, fmt, type I18n, type Language, type Messages } from '../i18n';
 import { InferenceRateController } from '../camera/InferenceRateController';
 import { MediaPipePoseEstimator } from '../pose/MediaPipePoseEstimator';
 import type { PoseEstimator } from '../pose/PoseEstimator';
@@ -13,7 +14,7 @@ import { CoachSession, createDefaultStages, type LiveState } from '../session/Co
 import { summarizeSession } from '../session/SessionSummary';
 import { QueuedSpeechOutput, SilentEngine, WebSpeechEngine, type SpeechOutput } from '../speech/SpeechOutput';
 import type { PoseFrame, StrokeAnalysis } from '../types';
-import { CoachView } from '../ui/CoachView';
+import { CoachView, type SpeechOutcome, type Text } from '../ui/CoachView';
 import { SkeletonOverlay } from '../ui/SkeletonOverlay';
 
 type Mode = 'camera' | 'file' | 'demo';
@@ -24,7 +25,6 @@ export class CoachApp {
   private readonly view: CoachView;
   private readonly overlay: SkeletonOverlay;
   private readonly speech: SpeechOutput;
-  private readonly speechEngine: WebSpeechEngine | null;
   private estimator: PoseEstimator | null = null;
   private config: AppConfig = createConfig();
 
@@ -44,20 +44,29 @@ export class CoachApp {
   private lastStrokeAt = 0;
   private framesInWindow: number[] = [];
 
-  constructor(private settings: UserSettings) {
-    this.view = new CoachView(settings, {
+  constructor(
+    private settings: UserSettings,
+    private readonly i18n: I18n,
+  ) {
+    this.view = new CoachView(settings, i18n, {
       onStartStop: () => void (this.running ? this.stop() : this.start('camera')),
       onVoiceToggle: () => this.toggleVoice(),
       onDemo: () => void this.start('demo'),
       onFile: (file) => void this.start('file', file),
       onSettingsChanged: (s) => this.updateSettings(s),
+      onLanguageChanged: (lang) => this.changeLanguage(lang),
     }, this.config.historySize);
     this.overlay = new SkeletonOverlay(this.view.canvas);
-    this.speechEngine = WebSpeechEngine.available()
-      ? new WebSpeechEngine(this.config.speech.lang, this.config.speech.rate)
-      : null;
-    this.speech = new QueuedSpeechOutput(this.speechEngine ?? new SilentEngine(), this.config.speech.maxQueuedAgeMs);
+    // Speech follows the UI language and only ever uses on-device voices.
+    const engine = WebSpeechEngine.available()
+      ? new WebSpeechEngine(i18n.lang, this.config.speech.rate)
+      : new SilentEngine();
+    this.speech = new QueuedSpeechOutput(engine, this.config.speech.maxQueuedAgeMs);
     this.speech.setMuted(!settings.voiceEnabled);
+    i18n.subscribe((lang) => {
+      this.speech.setLanguage(lang);
+      this.updateVoiceNotice();
+    });
 
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible' && this.running) void this.acquireWakeLock();
@@ -70,6 +79,7 @@ export class CoachApp {
     if (this.running) return;
     this.view.showError(null);
     this.speech.unlock(); // Inside the click handler: required on iOS.
+    this.updateVoiceNotice();
     this.mode = mode;
     this.config = createConfig({ camera: { facingMode: this.settings.cameraFacing } });
     this.session = new CoachSession(this.config, createDefaultStages(this.config, this.settings));
@@ -85,7 +95,7 @@ export class CoachApp {
     this.framesInWindow = [];
 
     try {
-      this.view.setBusy(true, mode === 'demo' ? 'Starting demo…' : 'Loading pose model…');
+      this.view.setBusy(true, mode === 'demo' ? (t) => t.status.startingDemo : (t) => t.status.loadingModel);
       if (mode === 'demo') {
         this.demo = new SyntheticPoseSource(this.settings.handedness);
         this.view.video.hidden = true;
@@ -95,7 +105,7 @@ export class CoachApp {
           await est.init();
           this.estimator = est;
         }
-        this.view.setBusy(true, mode === 'camera' ? 'Starting camera…' : 'Opening video…');
+        this.view.setBusy(true, mode === 'camera' ? (t) => t.status.startingCamera : (t) => t.status.openingVideo);
         this.view.video.hidden = false;
         this.source = mode === 'camera' ? new CameraSource(this.view.video, this.config.camera) : new VideoFileSource(this.view.video, file!);
         await this.source.start();
@@ -105,15 +115,9 @@ export class CoachApp {
     } catch (err) {
       this.view.setBusy(false);
       this.cleanupSource();
-      this.view.setStatus('error', 'Could not start');
-      this.view.showError(err instanceof Error ? err.message : String(err));
+      this.view.setStatus('error', (t) => t.status.couldNotStart);
+      this.view.showError(startErrorText(err));
       return;
-    }
-
-    if (this.settings.voiceEnabled && this.speechEngine && !this.speechEngine.hasPrivateVoice) {
-      this.view.showError(
-        'Voice feedback is off: this browser only offers online voices, which would send the coaching text to a server. Feedback is shown on screen instead.',
-      );
     }
 
     this.running = true;
@@ -197,7 +201,8 @@ export class CoachApp {
       }
     } catch (err) {
       console.error(err);
-      this.view.showError(`Processing error: ${err instanceof Error ? err.message : String(err)}`);
+      const message = err instanceof Error ? err.message : String(err);
+      this.view.showError((t) => fmt(t.errors.processing, { message }));
     }
     this.scheduleNext();
   }
@@ -219,8 +224,14 @@ export class CoachApp {
 
   private onStroke(a: StrokeAnalysis): void {
     this.lastStrokeAt = performance.now();
-    this.view.showStroke(a, this.session!.analyses.slice(-this.config.historySize));
-    if (a.feedback.speak) this.speech.speak(a.feedback.text, a.feedback.priority);
+    let outcome: SpeechOutcome = 'notSpoken';
+    if (a.feedback.speak && this.settings.voiceEnabled) {
+      // Text in the current language; spoken only with an on-device voice.
+      const result = this.speech.speak(coachingText(a.feedback.message, this.i18n.lang), a.feedback.priority);
+      outcome = result === 'unavailable' ? 'noVoice' : result === 'muted' ? 'notSpoken' : 'spoken';
+      if (result === 'unavailable') this.updateVoiceNotice();
+    }
+    this.view.showStroke(a, this.session!.analyses.slice(-this.config.historySize), outcome);
   }
 
   private countFrame(now: number): void {
@@ -240,12 +251,26 @@ export class CoachApp {
     this.speech.setMuted(!this.settings.voiceEnabled);
     if (this.settings.voiceEnabled) this.speech.unlock();
     this.view.setVoice(this.settings.voiceEnabled);
+    this.updateVoiceNotice();
     saveSettings(this.settings);
   }
 
   private updateSettings(s: UserSettings): void {
-    this.settings = { ...s, voiceEnabled: this.settings.voiceEnabled };
+    this.settings = { ...s, voiceEnabled: this.settings.voiceEnabled, language: this.settings.language };
     saveSettings(this.settings);
+  }
+
+  /** User picked a language: apply immediately (UI + speech) and remember it. */
+  private changeLanguage(lang: Language): void {
+    this.settings = { ...this.settings, language: lang };
+    saveSettings(this.settings);
+    this.i18n.setLanguage(lang);
+  }
+
+  /** Shows a short notice when voice is on but no on-device voice exists. */
+  private updateVoiceNotice(): void {
+    const missing = this.settings.voiceEnabled && !this.speech.available;
+    this.view.showNotice(missing ? (t) => fmt(t.notices.noLocalVoice, { language: t.meta.languageName }) : null);
   }
 
   private async acquireWakeLock(): Promise<void> {
@@ -260,6 +285,11 @@ export class CoachApp {
     }
   }
 
+  /** For automated tests: current UI/speech language. */
+  get language(): Language {
+    return this.i18n.lang;
+  }
+
   /** For automated tests: current number of analyzed strokes. */
   get strokeCount(): number {
     return this.session?.analyses.length ?? 0;
@@ -268,4 +298,23 @@ export class CoachApp {
   get lastStrokeTime(): number {
     return this.lastStrokeAt;
   }
+}
+
+function startErrorText(err: unknown): Text {
+  if (err instanceof CameraError) {
+    const code = err.code;
+    const detail = err.message;
+    return (t: Messages) =>
+      code === 'insecure'
+        ? t.errors.cameraInsecure
+        : code === 'unsupported'
+          ? t.errors.cameraUnsupported
+          : code === 'denied'
+            ? t.errors.cameraDenied
+            : code === 'notFound'
+              ? t.errors.cameraNotFound
+              : fmt(t.errors.cameraOther, { message: detail });
+  }
+  const message = err instanceof Error ? err.message : String(err);
+  return (t: Messages) => fmt(t.errors.startFailed, { message });
 }

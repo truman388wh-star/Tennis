@@ -26,6 +26,8 @@ export function saveSettings(settings: UserSettings, storage: Pick<Storage, 'set
 
 function sanitize(s: UserSettings): UserSettings {
   return {
+    // Only kept when the user explicitly chose a supported language.
+    ...(s.language === 'zh-CN' || s.language === 'en-US' ? { language: s.language } : {}),
     handedness: s.handedness === 'left' ? 'left' : 'right',
     netDirection: s.netDirection === 'left' || s.netDirection === 'right' ? s.netDirection : 'auto',
     voiceEnabled: s.voiceEnabled !== false,

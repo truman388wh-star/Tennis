@@ -125,6 +125,10 @@ To add **racket or ball tracking**: run the detector next to the pose estimator,
 
 To add a **learned stroke classifier**: implement `StrokeEventDetector` over the same `BodyFeatures` stream (or wrap the heuristic detector and classify each candidate window), then pass it via `createDefaultStages()` overrides.
 
+## Localization
+
+`src/i18n/` holds all user-visible text (`en-US.ts`, `zh-CN.ts`) behind an `I18n` object with change notifications. The coaching engine never produces text: `FeedbackController` emits a `CoachingMessageKey` (e.g. `{ type: 'issue', issue: 'late-contact', variant: 'now' }`), and `CoachingMemory` compares keys, so coaching behavior is identical in every language. `CoachView` keeps what it displays as state and re-renders on language change. `QueuedSpeechOutput.setLanguage()` cancels current speech and re-selects an on-device voice for the new language (`pickLocalVoice`); without one, `speak()` returns `'unavailable'` and the UI shows the text with a notice.
+
 ## Key decisions
 
 | Decision | Why |

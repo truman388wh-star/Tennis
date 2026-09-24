@@ -7,6 +7,9 @@
 //   therefore has the same physical length horizontally and vertically, which
 //   keeps angles and distances meaningful. y grows downwards.
 
+import type { CoachingMessageKey } from '../coaching/messageKeys';
+import type { IssueId } from '../coaching/issues';
+
 export type Handedness = 'right' | 'left';
 
 /** Which side of the camera image the net is on. `auto` learns it from swings. */
@@ -177,20 +180,26 @@ export interface StrokeScore {
 export type FeedbackKind = 'issue' | 'repeat' | 'improvement' | 'praise' | 'visibility';
 
 export interface CoachingFeedback {
-  text: string;
+  /** Language-neutral message; rendered to text by src/i18n. */
+  message: CoachingMessageKey;
   kind: FeedbackKind;
   /** Issue this feedback is about, if any. */
-  issueId: string | null;
+  issueId: IssueId | null;
+  /** Severity of that issue (0..1), for the localized explanation. */
+  severity?: number;
+  /** For recurring issues: occurrences within the last `window` strokes. */
+  occurrences?: number;
+  window?: number;
   /** Higher = more important; used by the speech queue. */
   priority: number;
   /** Whether the feedback controller wants this spoken aloud. */
   speak: boolean;
-  /** Short developer-facing explanation of the decision. */
+  /** Developer-facing explanation (English, for logs/tests; not shown in the UI). */
   reason: string;
 }
 
 export interface IssueAssessment {
-  id: string;
+  id: IssueId;
   category: CategoryId;
   /** 0..1 how pronounced the issue is. */
   severity: number;

@@ -211,6 +211,16 @@ These parts can't be tested without a real device and player:
 - [ ] Screen stays on (wake lock); behavior when the app is backgrounded.
 - [ ] Metric ranges match what a coach sees (see the calibration workflow).
 
+## Languages (中文 / English)
+
+The app is fully localized in **Simplified Chinese (`zh-CN`)** and **English (`en-US`)**: every button, status, phase, score and metric label, stroke detail, summary, error, notice and coaching cue.
+
+- **Default:** the device/browser language (any Chinese locale → 中文, otherwise English).
+- **Switching:** Settings → *Language / 语言*. The change applies immediately, with no reload, including the latest feedback on screen, and is saved in `localStorage`. From then on the saved choice wins over the device language.
+- **Coaching cues** are written separately for each language, not machine-translated. Chinese cues are short on-court calls ("击球点太晚了", "重心向前送"); English keeps the concise style ("Contact point was too late.").
+- **Speech follows the language** and uses **on-device voices only**: a local Mandarin voice for 中文 (Cantonese voices are excluded), a local English voice for English. If the phone has no local voice for the selected language, the cue is shown as text and a short notice explains why. Online/cloud voices are never used.
+- **Architecture:** `src/i18n/en-US.ts` and `src/i18n/zh-CN.ts` hold all strings (UI, coaching, metric and phase labels, summary, errors). `src/i18n/index.ts` handles detection, persistence and formatting. The coaching engine emits language-neutral message keys (`src/coaching/messageKeys.ts`), which are rendered into text only for display or speech. The TypeScript types and a unit test guarantee both languages have exactly the same keys and placeholders. To add a language, add a resource file and register it in `src/i18n/index.ts`.
+
 ## Privacy
 
 Camera video **never leaves the device**. Pose inference runs in the browser (MediaPipe WebAssembly). Only 33 landmark coordinates per frame are kept, in memory, for about 3 seconds. Nothing is recorded, uploaded or saved except your settings. A network guard and a Content-Security-Policy restrict the page to its own static files; together they also block MediaPipe's built-in usage telemetry (`odml.pa.googleapis.com`). Speech uses on-device voices only. Full details, including exactly what is stored and sent: **[PRIVACY.md](PRIVACY.md)**.
