@@ -4,6 +4,19 @@
 
 import type { CameraConfig } from '../config/config';
 
+/** Camera failures carry a code; the UI shows a localized message for it. */
+export type CameraErrorCode = 'insecure' | 'unsupported' | 'denied' | 'notFound' | 'other';
+
+export class CameraError extends Error {
+  constructor(
+    readonly code: CameraErrorCode,
+    detail = '',
+  ) {
+    super(detail || code);
+    this.name = 'CameraError';
+  }
+}
+
 export interface FrameSource {
   readonly video: HTMLVideoElement;
   readonly kind: 'camera' | 'file';
@@ -32,11 +45,7 @@ export class CameraSource implements FrameSource {
 
   async start(): Promise<void> {
     if (!CameraSource.supported()) {
-      throw new Error(
-        window.isSecureContext
-          ? 'Camera API not available in this browser.'
-          : 'Camera requires HTTPS. Open the app via https:// or localhost.',
-      );
+      throw new CameraError(window.isSecureContext ? 'unsupported' : 'insecure');
     }
     const constraints: MediaStreamConstraints = {
       audio: false,
@@ -115,10 +124,10 @@ function waitForDimensions(video: HTMLVideoElement): Promise<void> {
   });
 }
 
-function describeCameraError(err: unknown): Error {
+function describeCameraError(err: unknown): CameraError {
   if (err instanceof DOMException) {
-    if (err.name === 'NotAllowedError') return new Error('Camera permission was denied. Allow camera access and try again.');
-    if (err.name === 'NotFoundError') return new Error('No camera found on this device.');
+    if (err.name === 'NotAllowedError' || err.name === 'SecurityError') return new CameraError('denied');
+    if (err.name === 'NotFoundError') return new CameraError('notFound');
   }
-  return err instanceof Error ? err : new Error(String(err));
+  return new CameraError('other', err instanceof Error ? err.message : String(err));
 }

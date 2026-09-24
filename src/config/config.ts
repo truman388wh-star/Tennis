@@ -169,13 +169,17 @@ export interface CoachingConfig {
 }
 
 export interface SpeechConfig {
-  lang: string;
   rate: number;
   /** Queued messages older than this are dropped (stale feedback is noise). */
   maxQueuedAgeMs: number;
 }
 
 export interface UserSettings {
+  /**
+   * UI and speech language chosen by the user. Undefined until the user picks
+   * one; the device/browser language is used until then.
+   */
+  language?: 'zh-CN' | 'en-US';
   handedness: Handedness;
   netDirection: NetDirection;
   voiceEnabled: boolean;
@@ -320,7 +324,6 @@ export const DEFAULT_CONFIG: AppConfig = {
     minConfidence: 0.45,
   },
   speech: {
-    lang: 'en-US',
     rate: 1.05,
     maxQueuedAgeMs: 2500,
   },

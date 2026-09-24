@@ -2,6 +2,7 @@
 // detect recurring problems and notice improvements.
 
 import type { CategoryId, FeedbackKind } from '../types';
+import type { IssueId } from './issues';
 import { RingBuffer } from '../buffer/RingBuffer';
 
 export interface StrokeRecord {
@@ -10,13 +11,13 @@ export interface StrokeRecord {
   confidence: number;
   categories: Record<CategoryId, number | null>;
   /** Primary issue of the stroke (after ranking), if any. */
-  primaryIssue: string | null;
+  primaryIssue: IssueId | null;
   /** Severity of every detected issue on that stroke. */
   severities: Record<string, number>;
-  /** Text that was spoken for the stroke, if anything was spoken. */
+  /** Message id (see messageId()) spoken for the stroke, if any. Language-neutral. */
   spoken: string | null;
   spokenKind: FeedbackKind | null;
-  spokenIssue: string | null;
+  spokenIssue: IssueId | null;
 }
 
 export class CoachingMemory {

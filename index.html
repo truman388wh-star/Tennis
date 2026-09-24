@@ -4,13 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#0d1f16" />
-    <meta name="description" content="On-device AI forehand coach: live pose analysis and spoken feedback while you practice." />
+    
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="./icon-192.png" />
-    <title>AI Tennis Coach</title>
+    <title></title>
   </head>
   <body>
     <main id="app">
@@ -19,8 +19,8 @@
         <canvas id="overlay" aria-hidden="true"></canvas>
 
         <div class="topbar">
-          <span class="pill" id="status" data-kind="idle">Not started</span>
-          <span class="pill phase" id="phase" hidden>Ready</span>
+          <span class="pill" id="status" data-kind="idle"></span>
+          <span class="pill phase" id="phase" hidden></span>
           <span class="pill subtle" id="perf" hidden></span>
         </div>
 
@@ -30,14 +30,11 @@
         </div>
 
         <div class="intro" id="intro">
-          <h1>AI Tennis Coach</h1>
-          <p class="lead">Forehand feedback while you practice. Everything runs on this phone. Video is never recorded or uploaded.</p>
-          <ol>
-            <li>Stand the phone <strong>beside you, level with the baseline</strong>, 4–6 m away, so your <strong>whole body</strong> is in view.</li>
-            <li>Set your dominant hand in <strong>Settings</strong>.</li>
-            <li>Tap <strong>Start</strong> and just keep hitting. The app picks up each forehand and tells you one thing about it.</li>
-          </ol>
-          <p class="note">Contact timing is <em>estimated</em> from your arm movement, because the app doesn't see the ball or racket. The scores are rough, rule-based estimates, not a coach's judgement.</p>
+          <h1 data-i18n="intro.heading"></h1>
+          <p class="lead" data-i18n="intro.lead"></p>
+          <ol id="intro-steps"></ol>
+          <p class="note" data-i18n-rich="intro.note"></p>
+          <p class="note privacy-note" data-i18n="intro.privacy"></p>
         </div>
       </section>
 
@@ -45,66 +42,70 @@
         <div class="score-card" id="score-card">
           <div class="score-main">
             <div class="score-value na" id="score-value">–</div>
-            <div class="score-label">Last stroke<span id="stroke-count"></span></div>
+            <div class="score-label"><span data-i18n="score.lastStroke"></span><span id="stroke-count"></span></div>
           </div>
           <div class="subscores" id="subscores"></div>
         </div>
 
-        <div class="history" id="history" aria-label="Recent stroke scores"></div>
+        <div class="history" id="history" data-i18n-aria="score.historyLabel"></div>
 
         <details class="details" id="metrics-details">
-          <summary>Stroke details</summary>
+          <summary data-i18n="details.title"></summary>
           <dl id="metrics"></dl>
         </details>
 
         <div class="controls">
-          <button id="start" class="primary">Start</button>
-          <button id="voice" aria-pressed="true" title="Voice feedback">🔊 Voice</button>
-          <button id="settings-btn" title="Settings">⚙︎ Settings</button>
+          <button id="start" class="primary"></button>
+          <button id="voice" aria-pressed="true" data-i18n-title="titles.voice"></button>
+          <button id="settings-btn" data-i18n="buttons.settings" data-i18n-title="titles.settings"></button>
         </div>
         <div class="controls secondary">
-          <button id="demo" class="link">Try demo (no camera)</button>
-          <label class="link file-label">Analyze a video file<input type="file" id="file" accept="video/*" hidden /></label>
+          <button id="demo" class="link" data-i18n="buttons.demo"></button>
+          <label class="link file-label"><span data-i18n="buttons.analyzeFile"></span><input type="file" id="file" accept="video/*" hidden /></label>
         </div>
+        <div class="notice" id="notice" role="status" hidden></div>
         <div class="error" id="error" role="alert" hidden></div>
       </section>
     </main>
 
     <dialog id="settings">
       <form method="dialog" class="dialog-body">
-        <h2>Settings</h2>
-        <label>Dominant hand
+        <h2 data-i18n="settings.title"></h2>
+        <label><span data-i18n="settings.language"></span>
+          <select id="set-language"></select>
+        </label>
+        <label><span data-i18n="settings.hand"></span>
           <select id="set-hand">
-            <option value="right">Right-handed</option>
-            <option value="left">Left-handed</option>
+            <option value="right" data-i18n="settings.handRight"></option>
+            <option value="left" data-i18n="settings.handLeft"></option>
           </select>
         </label>
-        <label>Net is on the … side of the screen
+        <label><span data-i18n="settings.net"></span>
           <select id="set-net">
-            <option value="auto">Detect automatically</option>
-            <option value="left">Left</option>
-            <option value="right">Right</option>
+            <option value="auto" data-i18n="settings.netAuto"></option>
+            <option value="left" data-i18n="settings.netLeft"></option>
+            <option value="right" data-i18n="settings.netRight"></option>
           </select>
         </label>
-        <label>Camera
+        <label><span data-i18n="settings.camera"></span>
           <select id="set-camera">
-            <option value="environment">Back camera</option>
-            <option value="user">Front camera</option>
+            <option value="environment" data-i18n="settings.cameraBack"></option>
+            <option value="user" data-i18n="settings.cameraFront"></option>
           </select>
         </label>
-        <label>Pose analysis rate: <output id="set-fps-out">30</output> fps
+        <label><span><span data-i18n="settings.rate"></span> <output id="set-fps-out">30</output> <span data-i18n="settings.fpsUnit"></span></span>
           <input type="range" id="set-fps" min="10" max="60" step="5" value="30" />
         </label>
-        <p class="note">Lower the rate if the phone gets hot or struggles to keep up. The app also reduces it automatically. Changes apply the next time you press Start.</p>
-        <div class="dialog-actions"><button value="close" class="primary">Done</button></div>
+        <p class="note" data-i18n="settings.rateNote"></p>
+        <div class="dialog-actions"><button value="close" class="primary" data-i18n="buttons.done"></button></div>
       </form>
     </dialog>
 
     <dialog id="summary">
       <form method="dialog" class="dialog-body">
-        <h2>Session summary</h2>
+        <h2 data-i18n="summary.title"></h2>
         <div id="summary-content"></div>
-        <div class="dialog-actions"><button value="close" class="primary">Close</button></div>
+        <div class="dialog-actions"><button value="close" class="primary" data-i18n="buttons.close"></button></div>
       </form>
     </dialog>
 

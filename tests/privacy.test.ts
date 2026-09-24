@@ -22,14 +22,36 @@ describe('network guard URL policy', () => {
   });
 });
 
-describe('speech voice selection', () => {
-  it('only ever picks on-device voices', () => {
-    const voices = [
-      { lang: 'en-US', localService: false, name: 'Google US English' },
-      { lang: 'en-GB', localService: true, name: 'Daniel' },
-    ];
-    expect(pickLocalVoice(voices, 'en-US')).toMatchObject({ localService: true });
-    expect(pickLocalVoice([{ lang: 'en-US', localService: false }], 'en-US')).toBeNull();
+describe('speech voice selection (on-device only)', () => {
+  const voices = [
+    { lang: 'en-US', localService: false, name: 'Google US English' },
+    { lang: 'zh-CN', localService: false, name: 'Google 普通话（中国大陆）' },
+    { lang: 'zh-HK', localService: true, name: 'Sinji (Cantonese)' },
+    { lang: 'en-GB', localService: true, name: 'Daniel' },
+    { lang: 'zh-TW', localService: true, name: 'Meijia' },
+    { lang: 'zh-CN', localService: true, name: 'Tingting' },
+    { lang: 'en-US', localService: true, name: 'Samantha' },
+  ];
+
+  it('en-US: picks the local US English voice, never the network one', () => {
+    expect(pickLocalVoice(voices, 'en-US')?.name).toBe('Samantha');
+    expect(pickLocalVoice(voices.filter((v) => v.name !== 'Samantha'), 'en-US')?.name).toBe('Daniel');
+  });
+
+  it('zh-CN: picks a local Mandarin voice, never the network one or Cantonese', () => {
+    expect(pickLocalVoice(voices, 'zh-CN')?.name).toBe('Tingting');
+    expect(pickLocalVoice(voices.filter((v) => v.name !== 'Tingting'), 'zh-CN')?.name).toBe('Meijia');
+    expect(pickLocalVoice([{ lang: 'zh_CN', localService: true }], 'zh-CN')).not.toBeNull();
+    expect(pickLocalVoice([{ lang: 'cmn-Hans-CN', localService: true }], 'zh-CN')).not.toBeNull();
+  });
+
+  it('returns null (text only) when only network or wrong-language voices exist', () => {
+    const remoteOnly = voices.filter((v) => !v.localService);
+    expect(pickLocalVoice(remoteOnly, 'en-US')).toBeNull();
+    expect(pickLocalVoice(remoteOnly, 'zh-CN')).toBeNull();
+    expect(pickLocalVoice([{ lang: 'zh-HK', localService: true }], 'zh-CN')).toBeNull();
+    expect(pickLocalVoice([{ lang: 'en-US', localService: true }], 'zh-CN')).toBeNull();
+    expect(pickLocalVoice([{ lang: 'zh-CN', localService: true }], 'en-US')).toBeNull();
   });
 });
 
