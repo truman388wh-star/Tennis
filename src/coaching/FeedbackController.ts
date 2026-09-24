@@ -13,14 +13,14 @@
 //          "... for several strokes" (spoken at most every repeatCooldownStrokes)
 //        otherwise -> short correction (not re-spoken if the same message
 //          was spoken within sameMessageCooldownStrokes, unless severe).
-//   4. No notable issue -> praise the strongest category / "Good stroke."
+//   4. No notable issue -> praise: "Good stroke." for excellent strokes, or a
+//      specific strength, rotating so the same praise is not repeated
 //      (spoken at most every praiseEveryStrokes strokes).
 
 import type { CoachingConfig } from '../config/config';
-import type { CategoryId, CoachingFeedback, IssueAssessment, StrokeScore } from '../types';
-import { CATEGORY_IDS } from '../types';
+import type { CoachingFeedback, IssueAssessment, StrokeScore } from '../types';
 import type { CoachingMemory } from './CoachingMemory';
-import { GOOD_STROKE, ISSUE_BY_ID, LOW_VISIBILITY, LOW_VISIBILITY_REPEATED, PRAISE } from './issues';
+import { GOOD_STROKE, ISSUE_BY_ID, LOW_VISIBILITY, LOW_VISIBILITY_REPEATED, PRAISE, PRAISE_ORDER } from './issues';
 
 export const PRIORITY = { praise: 1, issue: 2, improvement: 2, severe: 3 } as const;
 
@@ -99,21 +99,27 @@ export class FeedbackController implements CoachingDecider {
     }
 
     // 4. Praise.
-    const best = bestCategory(score);
-    const text =
-      best && (score.categories[best] ?? 0) >= cfg.praiseCategoryMinScore && score.overall < 95
-        ? PRAISE[best]
-        : GOOD_STROKE;
     const praiseWorthy = score.overall >= cfg.praiseMinScore;
     const speak = praiseWorthy && memory.strokesSinceAnySpoken() >= cfg.praiseEveryStrokes;
     return {
-      text: praiseWorthy ? text : modestStrokeMessage(score.overall),
+      text: praiseWorthy ? this.choosePraise(score, memory) : modestStrokeMessage(score.overall),
       kind: 'praise',
       issueId: null,
       priority: PRIORITY.praise,
       speak,
-      reason: praiseWorthy ? `no notable issue, strongest area ${best}` : 'no notable issue but score is modest',
+      reason: praiseWorthy ? 'no notable issue' : 'no notable issue but score is modest',
     };
+  }
+
+  /** Picks praise that was not said recently, so feedback stays varied. */
+  private choosePraise(score: StrokeScore, memory: CoachingMemory): string {
+    const recent = new Set(memory.recent(4).map((r) => r.spoken));
+    if (score.overall >= 95 && !recent.has(GOOD_STROKE)) return GOOD_STROKE;
+    for (const c of PRAISE_ORDER) {
+      const v = score.categories[c];
+      if (v !== null && v >= this.cfg.praiseCategoryMinScore && !recent.has(PRAISE[c])) return PRAISE[c];
+    }
+    return GOOD_STROKE;
   }
 
   /**
@@ -131,15 +137,6 @@ export class FeedbackController implements CoachingDecider {
     }
     return null;
   }
-}
-
-function bestCategory(score: StrokeScore): CategoryId | null {
-  let best: CategoryId | null = null;
-  for (const c of CATEGORY_IDS) {
-    const v = score.categories[c];
-    if (v !== null && (best === null || v > (score.categories[best] ?? -1))) best = c;
-  }
-  return best;
 }
 
 function modestStrokeMessage(overall: number): string {

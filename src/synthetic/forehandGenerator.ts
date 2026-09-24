@@ -88,6 +88,10 @@ export interface SessionSpec {
   timeJitterMs?: number;
   seed?: number;
   aspect?: number;
+  /** Torso length in image units (camera distance / player size). */
+  torso?: number;
+  /** Horizontal position of the player in the image (0..aspect). */
+  centerX?: number;
 }
 
 type Key = [number, number];
@@ -264,9 +268,9 @@ export function generateSession(spec: SessionSpec): PoseFrame[] {
   const aspect = spec.aspect ?? 16 / 9;
   const rand = mulberry32(spec.seed ?? 1);
   const noise = spec.noise ?? 0;
-  const TORSO = 0.22; // torso length in image units
-  const groundY = 0.93;
-  const baseX = aspect / 2;
+  const TORSO = spec.torso ?? 0.22; // torso length in image units
+  const groundY = 0.5 + TORSO * 1.95;
+  const baseX = spec.centerX ?? aspect / 2;
   const strokes = [...spec.strokes].sort((a, b) => a.startMs - b.startMs);
   const frames: PoseFrame[] = [];
   const dtMs = 1000 / spec.fps;

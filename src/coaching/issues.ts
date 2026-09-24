@@ -206,6 +206,17 @@ export const PRAISE: Record<CategoryId, string> = {
   followThrough: 'Good follow-through.',
 };
 
+/** Order in which strengths are praised (most important first). */
+export const PRAISE_ORDER: readonly CategoryId[] = [
+  'contact',
+  'rotation',
+  'preparation',
+  'weightTransfer',
+  'followThrough',
+  'balance',
+  'timing',
+];
+
 export const GOOD_STROKE = 'Good stroke.';
 export const LOW_VISIBILITY = "Couldn't see that one clearly.";
 export const LOW_VISIBILITY_REPEATED = 'Make sure your whole body is in the picture.';
